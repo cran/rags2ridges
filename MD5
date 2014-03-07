@@ -1,0 +1,14 @@
+bbd9b3af6049200a371120d0bdf8c899 *DESCRIPTION
+cefb9ce28ae6c8b736e75b08834981f3 *NAMESPACE
+8b0ee2a05d162e997af20739eb480443 *R/rags2ridges.R
+0f9f148198dc98e280eb6e3a8983a43a *inst/CITATION
+a385bb5ee34964b4281f2547630241aa *man/Ugraph.Rd
+d20978a2e67b3a0765d9518bce92ea42 *man/adjacentMat.Rd
+e6b905c7bc849412480450fc5ca2252f *man/edgeHeat.Rd
+2faa495a054b4f4a77bcc662a083207f *man/loss.Rd
+8cfe34b997d815003999f79faaa8fa22 *man/optPenaltyCV.Rd
+fbcc89c1641352cd44a036b5651d3fd4 *man/pcor.Rd
+39397cb8ee4c1e9ded941af005a43b4f *man/rags2ridges-package.Rd
+dc1dfca15601a07aa3bd934c3c039c87 *man/ridgeS.Rd
+066b32e3e893ccb1c15ed55a26558edf *man/sparsify.Rd
+eb1fd33c02b59a8b0760bc2c2077bcd7 *man/symm.Rd
