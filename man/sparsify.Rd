@@ -7,7 +7,8 @@ Determine the support of a partial correlation/precision matrix
 Function that determines the support of a partial correlation/precision matrix and sparsifies it accordingly.
 }
 \usage{
-sparsify(P, type = c("threshold", "localFDR"), threshold = 0.25, FDRcut = 0.8)
+sparsify(P, type = c("threshold", "localFDR"), threshold = 0.25, FDRcut = 0.8, 
+verbose = TRUE)
 }
 \arguments{
   \item{P}{
@@ -21,6 +22,9 @@ A \code{numeric} giving the cut-off for partial correlation element selection ba
 }
   \item{FDRcut}{
 A \code{numeric} giving the cut-off for partial correlation element selection based on local false discovery rates (FDR).
+}
+  \item{verbose}{
+A \code{logical} indicating if intermediate output should be printed on screen.
 }
 }
 \details{
@@ -44,7 +48,7 @@ and implications for functional genomics. Statistical Applications in Genetics a
 Carel F.W. Peeters <cf.peeters@vumc.nl>, Wessel N. van Wieringen
 }
 \seealso{
-\code{\link{ridgeS}}, \code{\link{optPenaltyCV}}, \code{\link{symm}}
+\code{\link{ridgeS}}, \code{\link{optPenalty.aLOOCV}}, \code{\link{optPenaltyCV}}, \code{\link{symm}}
 }
 \examples{
 ## Obtain some (high-dimensional) data
@@ -53,10 +57,9 @@ n = 10
 set.seed(333)
 X = matrix(rnorm(n*p), nrow = n, ncol = p)
 colnames(X)[1:25] = letters[1:25]
-Cx <- cov(X)
 
 ## Obtain regularized precision under optimal penalty
-OPT <- optPenaltyCV(X, 15, 30, 20, output = "light")
+OPT <- optPenaltyCV(X, 12, 20, 10)
 
 ## Determine support regularized (standardized) precision under optimal penalty
 sparsify(symm(OPT$optPrec), type = "localFDR")

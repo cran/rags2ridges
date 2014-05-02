@@ -55,7 +55,7 @@ Wickham, H. (2009). ggplot2: elegant graphics for data analysis. New York: Sprin
 Carel F.W. Peeters <cf.peeters@vumc.nl>, Wessel N. van Wieringen
 }
 \seealso{
-\code{\link{ridgeS}}, \code{\link{sparsify}}
+\code{\link{covML}}, \code{\link{ridgeS}}, \code{\link{sparsify}}
 }
 \examples{
 ## Obtain some (high-dimensional) data
@@ -64,7 +64,7 @@ n = 10
 set.seed(333)
 X = matrix(rnorm(n*p), nrow = n, ncol = p)
 colnames(X)[1:25] = letters[1:25]
-Cx <- cov(X)
+Cx <- covML(X)
 
 ## Obtain regularized precision matrix
 P <- ridgeS(Cx, lambda = 10, type = "Alt")

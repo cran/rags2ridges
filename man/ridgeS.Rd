@@ -70,7 +70,7 @@ n = 10
 set.seed(333)
 X = matrix(rnorm(n*p), nrow = n, ncol = p)
 colnames(X)[1:25] = letters[1:25]
-Cx <- cov(X)
+Cx <- covML(X)
 
 ## Obtain regularized precision matrix
 ridgeS(Cx, lambda = 10, type = "Alt")

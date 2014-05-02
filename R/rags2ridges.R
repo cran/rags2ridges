@@ -9,7 +9,8 @@
 ##			Amsterdam, the Netherlands
 ## Email:		cf.peeters@vumc.nl; w.vanwieringen@vumc.nl
 ## 
-## Last Update:	07/03/2014
+## Version:		1.2
+## Last Update:	01/05/2014
 ## Description:	Ridge estimation, with supporting functions, for high-dimensional precision matrices
 ## Publication:	Wessel N. van Wieringen & Carel F.W. Peeters (2014)
 ##			"Ridge Estimation of Inverse Covariance Matrices for High-Dimensional Data"
@@ -23,7 +24,7 @@
 
 ##---------------------------------------------------------------------------------------------------------
 ## 
-## Support functions
+## Hidden support functions
 ##
 ##---------------------------------------------------------------------------------------------------------
 
@@ -88,6 +89,13 @@
 
 
 
+
+##---------------------------------------------------------------------------------------------------------
+## 
+## Support functions
+##
+##---------------------------------------------------------------------------------------------------------
+
 symm <- function(M){
 	#####################################################################################################
 	# - Large objects that are symmetric sometimes fail to be recognized as such by R due to
@@ -145,6 +153,92 @@ adjacentMat <- function(M, diag = FALSE){
 
 		# Return
 		return(AM)
+	}
+}
+
+
+
+covML <- function(Y){
+	#####################################################################################################
+	# - function that gives the maximum likelihood estimate of the covariance matrix
+	# - Y   > (raw) data matrix, assumed to have variables in columns
+	#####################################################################################################
+
+	# Dependencies
+	# require("base")
+	# require("stats")
+
+	if (!is.matrix(Y)){
+		stop("Input (Y) should be a matrix")
+	}
+	else {
+		Ys  <- scale(Y, center = TRUE, scale = FALSE)
+		Sml <- (t(Ys) %*% Ys)/nrow(Ys)
+		return(Sml)
+	}
+}
+
+
+
+evaluateS <- function(S, verbose = TRUE){
+	#####################################################################################################
+	# - Function evualuating various properties of an input matrix
+	# - Intended use is to evaluate the various properties of what is assumed to be a covariance matrix
+	# - Another use is to evaluate the various properties of a (regularized) precision matrix
+	# - S       > sample covariance/correlation matrix or (regularized) precision matrix
+	# - verbose > logical indicating if output should be printed on screen
+	#####################################################################################################
+
+	# Dependencies
+	# require("base")
+	# require("stats")
+	
+	if (!is.matrix(S)){
+		stop("S should be a matrix")
+	} 
+	else if (nrow(S) != ncol(S)){
+		stop("S should be a square matrix")
+	}
+	else if (class(verbose) != "logical"){
+		stop("Input (verbose) is of wrong class")
+	} 
+	else {
+		Sproperties <- list()
+
+		# Is S symmetric?
+		Sproperties$symm <- isSymmetric(S)
+
+		# Are eigenvalues S real and positive?
+		evs                   <- eigen(S)$values 
+		Sproperties$realEigen <- all(Im(evs) == 0) 
+		Sproperties$posEigen  <- all(evs > 0)
+
+		# Is S diagonally dominant?
+		Sproperties$dd <- all(abs(cov2cor(S)[upper.tri(S)]) < 1)
+
+		# Trace and determinant S
+		Sproperties$trace <- sum(diag(S))
+		Sproperties$det   <- det(S)
+
+		# Spectral condition number S
+		Sproperties$condNumber <- max(evs) / min(evs)	
+
+		if (verbose){
+			cat("Properties of S:", "\n")
+			cat("----------------------------------------", "\n")
+			cat(paste("-> symmetric : ", Sproperties$symm, sep=""), "\n")
+			cat(paste("-> eigenvalues real : ", Sproperties$realEigen, sep=""), "\n")
+			cat(paste("-> eigenvalues > 0 : ", Sproperties$posEigen, sep=""), "\n")
+			cat(paste("-> diag. dominant : ", Sproperties$dd, sep=""), "\n")
+	 		cat("", "\n")
+			cat(paste("-> trace : ", round(Sproperties$trace, 5), sep=""), "\n")
+			cat(paste("-> determinant : ", round(Sproperties$det, 5), sep=""), "\n")
+			cat(paste("-> cond. number : ", round(Sproperties$condNumber, 5), sep=""), "\n")
+			cat("----------------------------------------", "\n")
+		}
+
+		# Return
+		return(Sproperties)
 	}
 }
 
@@ -274,19 +368,19 @@ ridgeS <- function(S, lambda, type = "Alt", target = diag(1/diag(S))){
 ##
 ##---------------------------------------------------------------------------------------------------------
 
-optPenaltyCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target = diag(1/diag(cov(Y))), targetScale = TRUE, 
-				 output = "all", graph = TRUE, verbose = TRUE){ 
+optPenaltyCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target = diag(1/diag(covML(Y))), 
+                         targetScale = TRUE, output = "light", graph = TRUE, verbose = TRUE){ 
 	#####################################################################################################
 	# - Function that selects the optimal penalty parameter by leave-one-out cross-validation
-	# - Y           > (raw) Data matrix
+	# - Y           > (raw) Data matrix, variables in columns
 	# - lambdaMin   > minimum value penalty parameter (dependent on 'type')
 	# - lambdaMax   > maximum value penalty parameter (dependent on 'type')
 	# - step        > determines the coarseness in searching the grid [lambdaMin, lambdaMax]
 	# - type        > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
-	# - target      > target (precision terms) for Type I estimators, default = diag(1/diag(cov(Y)))
+	# - target      > target (precision terms) for Type I estimators, default = diag(1/diag(covML(Y)))
 	# - targetScale > logical, if TRUE: default target diag(1/diag(S)) is used, where S is based on 
 	#			CV sample; otherwise target is fixed for all CV samples and given by 'target'
-	# - output      > must be one of {"all", "light"}, default = "all"
+	# - output      > must be one of {"all", "light"}, default = "light"
 	# - graph       > Optional argument for visualization optimal penalty selection, default = TRUE
 	# - verbose     > logical indicating if intermediate output should be printed on screen
 	#####################################################################################################
@@ -294,6 +388,7 @@ optPenaltyCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target = d
 	# Dependencies
 	# require("base")
 	# require("stats")
+	# require("graphics")
 
 	if (class(verbose) != "logical"){
 		stop("Input (verbose) is of wrong class")
@@ -346,29 +441,30 @@ optPenaltyCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target = d
 		lambdas <- seq(lambdaMin, lambdaMax, len = step)
 
 		# Calculate CV scores
-		if (verbose){cat("Calculating cross-validated log-likelihoods...", "\n")}
+		if (verbose){cat("Calculating cross-validated negative log-likelihoods...", "\n")}
 		for (k in 1:length(lambdas)){
 			slh <- numeric()
         		for (i in 1:nrow(Y)){
-				S   <- cov(Y[-i,], method = "pearson")
+				S   <- covML(Y[-i,])
 				if (targetScale)  {slh <- c(slh, .LL(t(Y[i,,drop = F]) %*% Y[i,,drop = F], ridgeS(S, lambdas[k], type = type)))}
 				if (!targetScale) {slh <- c(slh, .LL(t(Y[i,,drop = F]) %*% Y[i,,drop = F], ridgeS(S, lambdas[k], type = type, target = target)))}
 			}
 			
-			if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
 			LLs <- c(LLs, mean(slh))
+			if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
 		}
 
 		# Visualization
 		optLambda <- min(lambdas[which(LLs == min(LLs))])
 		if (graph){
-			plot(log(lambdas), type = "l", log(LLs), xlab = "Log(penalty value)", ylab = "Log(Cross-Validated Log-Likelihood)", main = type)
+			plot(log(lambdas), type = "l", log(LLs), xlab = "log(penalty value)", ylab = "log(cross-validated neg. log-likelihood)", main = type)
 			abline(h = log(min(LLs)), v = log(optLambda), col = "red")
 			legend("topleft", legend = c(paste("min. CV LL: ", round(min(LLs),3), sep = ""), 
 			paste("Opt. penalty: ", optLambda, sep = "")), cex = .8)
 		}
 
 		# Return
+		S <- covML(Y)
 		if (output == "all"){
 			if (targetScale) {return(list(optLambda = optLambda, optPrec = ridgeS(S, optLambda, type = type), lambdas = lambdas, LLs = LLs))}
 			if (!targetScale){return(list(optLambda = optLambda, optPrec = ridgeS(S, optLambda, type = type, target = target), lambdas = lambdas, LLs = LLs))}
@@ -382,6 +478,209 @@ optPenaltyCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target = d
 
 
 
+optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target = diag(1/diag(covML(Y))), 
+                              output = "light", graph = TRUE, verbose = TRUE){
+	#####################################################################################################
+	# - Function that selects the optimal penalty parameter by approximate leave-one-out cross-validation
+	# - Y           > (raw) Data matrix, variables in columns
+	# - lambdaMin   > minimum value penalty parameter (dependent on 'type')
+	# - lambdaMax   > maximum value penalty parameter (dependent on 'type')
+	# - step        > determines the coarseness in searching the grid [lambdaMin, lambdaMax]
+	# - type        > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
+	# - target      > target (precision terms) for Type I estimators, default = diag(1/diag(covML(Y)))
+	# - output      > must be one of {"all", "light"}, default = "light"
+	# - graph       > Optional argument for visualization optimal penalty selection, default = TRUE
+	# - verbose     > logical indicating if intermediate output should be printed on screen
+	#####################################################################################################
+
+	# Dependencies
+	# require("base")
+	# require("graphics")
+
+	if (class(verbose) != "logical"){
+		stop("Input (verbose) is of wrong class")
+	} 
+	if (verbose){
+		cat("Perform input checks...", "\n")
+	}
+	if (!is.matrix(Y)){
+		stop("Y should be a matrix")
+	} 
+	else if (class(lambdaMin) != "numeric"){
+		stop("Input (lambdaMin) is of wrong class")
+	} 
+	else if (length(lambdaMin) != 1){
+		stop("lambdaMin must be a scalar")
+	} 
+	else if (lambdaMin <= 0){
+		stop("lambdaMin must be positive")
+	} 
+	else if (class(lambdaMax) != "numeric"){
+		stop("Input (lambdaMax) is of wrong class")
+	} 
+	else if (length(lambdaMax) != 1){
+		stop("lambdaMax must be a scalar")
+	} 
+	else if (lambdaMax <= lambdaMin){
+		stop("lambdaMax must be larger than lambdaMin")
+	}
+	else if (class(step) != "numeric"){
+		stop("Input (step) is of wrong class")
+	}
+	else if (!.is.int(step)){
+		stop("step should be integer")
+	}
+	else if (step <= 0){
+		stop("step should be a positive integer")
+	}
+	else if (!(output %in% c("all", "light"))){
+		stop("output should be one of {'all', 'light'}")
+	}
+	else if (class(graph) != "logical"){
+		stop("Input (graph) is of wrong class")
+	}
+	else {
+		# Set preliminaries
+		S       <- covML(Y)
+		n       <- nrow(Y)
+		lambdas <- seq(lambdaMin, lambdaMax, len = step)
+		aLOOCVs <- numeric()
+
+		# Calculate approximate LOOCV scores
+		if (verbose){cat("Calculating approximate LOOCV scores...", "\n")}
+		for (k in 1:length(lambdas)){
+			P    <- ridgeS(S, lambdas[k], type = type, target = target)
+			nLL  <- .5 * .LL(S, P)
+			isum <- numeric()
+
+        		for (i in 1:n){
+				S1   <- t(Y[i,,drop = FALSE]) %*% Y[i,,drop = FALSE]
+				isum <- c(isum, sum((solve(P) - S1) * (P %*% (S - S1) %*% P)))
+			}
+
+			aLOOCVs <- c(aLOOCVs, nLL + 1/(2 * n^2 - 2 * n) * sum(isum))
+			if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
+		}
+
+		# Visualization
+		optLambda <- min(lambdas[which(aLOOCVs == min(aLOOCVs))])
+		if (graph){
+			plot(log(lambdas), type = "l", log(aLOOCVs), xlab = "log(penalty value)", ylab = "log(Approximate LOOCV neg. log-likelihood)", main = type)
+			abline(h = log(min(aLOOCVs)), v = log(optLambda), col = "red")
+			legend("topleft", legend = c(paste("min. approx. LOOCV LL: ", round(min(aLOOCVs),3), sep = ""), 
+			paste("Opt. penalty: ", optLambda, sep = "")), cex = .8)
+		}
+
+		# Return
+		if (output == "all"){
+			return(list(optLambda = optLambda, optPrec = ridgeS(S, optLambda, type = type, target = target), lambdas = lambdas, aLOOCVs = aLOOCVs))
+		}
+		if (output == "light"){
+			return(list(optLambda = optLambda, optPrec = ridgeS(S, optLambda, type = type, target = target)))
+		}
+	}
+}
+
+
+
+conditionNumber <- function(S, lambdaMin, lambdaMax, step, type = "Alt", target = diag(1/diag(S)),
+				    verticle = FALSE, value = 1, verbose = TRUE){
+	#####################################################################################################
+	# - Function that visualizes the spectral condition number against the regularization parameter
+	# - Can be used to heuristically determine the (minimal) value of the penalty parameter
+	# - The ridges are rotation equivariant, meaning they work by shrinking the eigenvalues
+	# - Maximum shrinkage implies that all eigenvalues will be equal
+	# - Ratio of maximum and minimum eigenvalue of P can then function as a heuristic 
+	# - It's point of stabilization can give an acceptable value for the penalty
+	# - The ratio boils down to the (spectral) condition number of a matrix
+	# - S         > sample covariance/correlation matrix
+	# - lambdaMin > minimum value penalty parameter (dependent on 'type')
+	# - lambdaMax > maximum value penalty parameter (dependent on 'type')
+	# - step      > determines the coarseness in searching the grid [lambdaMin, lambdaMax]
+	# - type      > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
+	# - target    > target (precision terms) for Type I estimators, default = diag(1/diag(S))
+	# - verticle  > optional argument for visualization verticle line in graph output, default = FALSE
+	#               Can be used to indicate the value of, e.g., the optimal penalty as indicated by some
+	#               routine. Can be used to assess if this optimal penalty will lead to a 
+	#               well-conditioned estimate
+	# - value     > indicates constant on which to base verticle line when verticle = TRUE. Default = 1
+	# - verbose   > logical indicating if intermediate output should be printed on screen
+	#####################################################################################################
+
+	# Dependencies
+	# require("base")
+	# require("graphics")
+
+	if (class(verbose) != "logical"){
+		stop("Input (verbose) is of wrong class")
+	} 
+	if (verbose){
+		cat("Perform input checks...", "\n")
+	}
+	if (!is.matrix(S)){
+		stop("S should be a matrix")
+	} 
+	else if (class(lambdaMin) != "numeric"){
+		stop("Input (lambdaMin) is of wrong class")
+	} 
+	else if (length(lambdaMin) != 1){
+		stop("lambdaMin must be a scalar")
+	} 
+	else if (lambdaMin <= 0){
+		stop("lambdaMin must be positive")
+	} 
+	else if (class(lambdaMax) != "numeric"){
+		stop("Input (lambdaMax) is of wrong class")
+	} 
+	else if (length(lambdaMax) != 1){
+		stop("lambdaMax must be a scalar")
+	} 
+	else if (lambdaMax <= lambdaMin){
+		stop("lambdaMax must be larger than lambdaMin")
+	}
+	else if (class(step) != "numeric"){
+		stop("Input (step) is of wrong class")
+	}
+	else if (!.is.int(step)){
+		stop("step should be integer")
+	}
+	else if (step <= 0){
+		stop("step should be a positive integer")
+	}
+	else if (class(verticle) != "logical"){
+		stop("Input (verticle) is of wrong class")
+	}
+	else {
+		# Set preliminaries
+		lambdas <- seq(lambdaMin, lambdaMax, len = step)
+		condNR  <- numeric()
+
+		# Calculate spectral condition number ridge estimate on lambda grid
+		if (verbose){cat("Calculating spectral condition numbers...", "\n")}
+		for (k in 1:length(lambdas)){
+			P         <- ridgeS(S, lambdas[k], type = type, target = target)
+			condNR[k] <- as.numeric((eigen(P, only.values = T)$values)[1]/(eigen(P, only.values = T)$values)[nrow(P)])
+			if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
+		}
+
+		# Visualization
+		plot(log(lambdas), type = "l", condNR, xlab = "log(penalty value)", ylab = "spectral condition number", main = type)
+		if (verticle){
+			if (class(value) != "numeric"){
+				stop("Input (value) is of wrong class")
+			} else if (length(value) != 1){
+				stop("Input (value) must be a scalar")
+			} else if (value <= 0){
+				stop("Input (value) must be positive")
+			} else {
+				abline(v = log(value), col = "red")
+			}
+		}
+	}
+}
+
+
+
 
 ##---------------------------------------------------------------------------------------------------------
 ## 
@@ -389,7 +688,7 @@ optPenaltyCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target = d
 ##
 ##---------------------------------------------------------------------------------------------------------
 
-sparsify <- function(P, type = c("threshold", "localFDR"), threshold = .25, FDRcut = .8){
+sparsify <- function(P, type = c("threshold", "localFDR"), threshold = .25, FDRcut = .8, verbose = TRUE){
 	#####################################################################################################
 	# - Function that sparsifies/determines support of a partial correlation matrix
 	# - Support can be determined ad-hoc by thresholding or by local FDRs 
@@ -401,6 +700,8 @@ sparsify <- function(P, type = c("threshold", "localFDR"), threshold = .25, FDRc
 	#               Only when type = 'threshold'. Default = .25
 	# - FDRcut    > cut-off for partial correlation element selection based on local FDR
 	#               Only when type = 'localFDR'. Default = .8
+	# - verbose   > logical indicating if intermediate output should be printed on screen
+	#               Only when type = 'localFDR'. Default = TRUE
 	#####################################################################################################
 
 	# Dependencies
@@ -416,6 +717,9 @@ sparsify <- function(P, type = c("threshold", "localFDR"), threshold = .25, FDRc
 	}
 	else if (!isSymmetric(P)){
 		stop("P should be a symmetric matrix")
+	}
+	else if (!evaluateS(P, verbose = FALSE)$posEigen){
+		stop("P is expected to be positive definite")
 	}
 	else if (missing(type)){
 		stop("Need to specify type of sparsification ('threshold' or 'localFDR')")
@@ -452,9 +756,16 @@ sparsify <- function(P, type = c("threshold", "localFDR"), threshold = .25, FDRc
 				stop("FDRcut must be a scalar")
 			} else if (FDRcut < 0 | FDRcut > 1){
 				stop("FDRcut must be in the interval [0,1]")
+			} else if (class(verbose) != "logical"){
+				stop("Input (verbose) is of wrong class")
 			} else {
-				PCtest  <- ggm.test.edges(PC, fdr = TRUE, direct = FALSE, plot = TRUE)
-				PCnet   <- extract.network(PCtest, cutoff.ggm = FDRcut); print(PCnet)
+				if (verbose){
+					PCtest <- ggm.test.edges(PC, fdr = TRUE, direct = FALSE, plot = TRUE)
+					PCnet  <- extract.network(PCtest, cutoff.ggm = FDRcut); print(PCnet)
+				} else {
+					PCtest <- ggm.test.edges(PC, fdr = TRUE, direct = FALSE, plot = FALSE)
+					PCnet  <- extract.network(PCtest, cutoff.ggm = FDRcut)
+				}
 				EdgeSet <- PCnet[,2:3]
 				PC0     <- diag(nrow(PC))
 				for(k in 1:dim(EdgeSet)[1]){
@@ -474,7 +785,7 @@ sparsify <- function(P, type = c("threshold", "localFDR"), threshold = .25, FDRc
 
 ##---------------------------------------------------------------------------------------------------------
 ## 
-## Function for Loss Evaluation
+## Functions for Loss/Entropy Evaluation
 ##
 ##---------------------------------------------------------------------------------------------------------
 
@@ -526,6 +837,67 @@ loss <- function(E, T, precision = TRUE, type = c("frobenius", "quadratic")){
 
 		# Return
 		return(loss)
+	}
+}
+
+
+
+KLdiv <- function(Mtest, Mref, Stest, Sref, symmetric = FALSE){
+	#####################################################################################################
+	# - Function that calculates the Kullback-Leibler divergence between two normal distributions
+	# - Mtest     > mean vector approximating m.v. normal distribution
+	# - Mref      > mean vector 'true'/reference m.v. normal distribution
+	# - Stest     > covariance matrix approximating m.v. normal distribution
+	# - Sref      > covariance matrix 'true'/reference m.v. normal distribution
+	# - symmetric > logical indicating if original symmetric version of KL div. should be calculated
+	#####################################################################################################
+
+	# Dependencies
+	# require("base")
+
+	if (class(Mtest) != "numeric"){
+		stop("Input (Mtest) is of wrong class")
+	} 
+	else if (class(Mref) != "numeric"){
+		stop("Input (Mref) is of wrong class")
+	} 
+	else if (length(Mtest) != length(Mref)){
+		stop("Mtest and Mref should be of same length")
+	} 
+	else if (!is.matrix(Stest)){
+		stop("Input (Stest) is of wrong class")
+	} 
+	else if (!is.matrix(Sref)){
+		stop("Input (Sref) is of wrong class")
+	} 
+	else if (!isSymmetric(Stest)){
+		stop("Stest should be symmetric")
+	}
+	else if (!isSymmetric(Sref)){
+		stop("Sref should be symmetric")
+	}
+	else if (dim(Stest)[1] != length(Mtest)){
+		stop("Column and row dimension of Stest should correspond to length Mtest")
+	}
+	else if (dim(Sref)[1] != length(Mref)){
+		stop("Column and row dimension of Sref should correspond to length Mref")
+	}
+	else if (class(symmetric) != "logical"){
+		stop("Input (symmetric) is of wrong class")
+	} 
+	else {
+		# Evaluate KL divergence
+		KLd <- (sum(diag(solve(Stest) %*% Sref)) + t(Mtest - Mref) %*% solve(Stest) %*% (Mtest - Mref) 
+			  - nrow(Sref) - log(det(Sref)) + log(det(Stest)))/2
+
+		# Evaluate (original) symmetric version KL divergence
+		if (symmetric){
+			KLd <- KLd + (sum(diag(solve(Sref) %*% Stest)) + t(Mref - Mtest) %*% solve(Sref) %*% (Mref - Mtest) 
+				 	  - nrow(Sref) - log(det(Stest)) + log(det(Sref)))/2
+		}
+
+	# Return
+	return(as.numeric(KLd))
 	}
 }
 
@@ -835,6 +1207,26 @@ Ugraph <- function(M, type = c("plain", "fancy", "weighted"), lay = layout.circl
             ##########################
             ########################## \n")
 }
+
+
+
+
+##---------------------------------------------------------------------------------------------------------
+## 
+## NOTES
+##
+##---------------------------------------------------------------------------------------------------------
+
+## Updates from version 1.1 to 1.2
+#- Inclusion function for ML estimation of the sample covariance matrix: 'covML'
+#- Inclusion function for approximate leave-one-out cross-validation: 'optPenalty.aLOOCV'
+#- Inclusion function 'conditionNumber' to visualize the spectral condition number over the regularization path
+#- Inclusion function 'evaluateS' to evaluate basic properties of a covariance matrix
+#- Inclusion function 'KLdiv' that calculates the Kullback-Leibler divergence between two normal distributions
+#- Inclusion option to suppress on-screen output in 'sparsify' function
+#- Corrected small error in 'optPenaltyCV' function
+#- Both 'optPenaltyCV' and 'optPenalty.aLOOCV' now utilize 'covML' instead of 'cov'
+#- Default output option in 'optPenaltyCV' (as in 'optPenalty.aLOOCV') is now "light"
 
 
 

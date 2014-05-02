@@ -20,6 +20,7 @@ A \code{logical} indicating if the partial correlation matrix should be computed
 \details{
 The function assumes that the input \code{matrix} is a precision matrix. 
 If \code{pc = FALSE} the standardized precision matrix, rather than the partial correlation matrix, is given as the output value. 
+The standardized precision matrix is equal to the partial correlation matrix up to the sign of off-diagonal entries.
 }
 \value{
 A partial correlation \code{matrix} or a standardized precision \code{matrix}.
@@ -28,7 +29,7 @@ A partial correlation \code{matrix} or a standardized precision \code{matrix}.
 Carel F.W. Peeters <cf.peeters@vumc.nl>, Wessel N. van Wieringen
 }
 \seealso{
-\code{\link{ridgeS}}
+\code{\link{ridgeS}}, \code{\link{covML}}, \code{\link{symm}}
 }
 \examples{
 ## Obtain some (high-dimensional) data
@@ -37,7 +38,7 @@ n = 10
 set.seed(333)
 X = matrix(rnorm(n*p), nrow = n, ncol = p)
 colnames(X)[1:25] = letters[1:25]
-Cx <- cov(X)
+Cx <- covML(X)
 
 ## Obtain regularized precision matrix
 P <- ridgeS(Cx, lambda = 10, type = "Alt")

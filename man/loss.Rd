@@ -48,11 +48,11 @@ This statement is needed so that the loss is properly evaluated over the precisi
 on the value of the \code{logical} argument \code{precision} inversions are employed where needed.
 
 The function can be employed to assess the risk of a certain ridge precision estimator (see also \code{\link{ridgeS}}).
-The risk \eqn{\mathcal{R}_{t}} of the estimator \eqn{\hat{\mathbf{\Omega}}(\lambda)} given a loss function \eqn{L_{t}}, 
-with \eqn{t \in \{F, Q\}} can be defined as the expected loss:
+The risk \eqn{\mathcal{R}_{f}} of the estimator \eqn{\hat{\mathbf{\Omega}}(\lambda)} given a loss function \eqn{L_{f}}, 
+with \eqn{f \in \{F, Q\}} can be defined as the expected loss:
 \deqn{
-\mathcal{R}_{t}[\hat{\mathbf{\Omega}}(\lambda)] =
-\mathrm{E}\{L_{t}[\hat{\mathbf{\Omega}}(\lambda),
+\mathcal{R}_{f}[\hat{\mathbf{\Omega}}(\lambda)] =
+\mathrm{E}\{L_{f}[\hat{\mathbf{\Omega}}(\lambda),
 \mathbf{\Omega}]\},
 }
 which can be approximated by the mean or median of losses over repeated simulation runs.
@@ -67,7 +67,7 @@ Van Wieringen, W.N. and Peeters, C.F.W. (2014). Ridge Estimation of Inverse Cova
 Carel F.W. Peeters <cf.peeters@vumc.nl>, Wessel N. van Wieringen
 }
 \seealso{
-\code{\link{ridgeS}}, \code{\link{symm}}
+\code{\link{covML}}, \code{\link{ridgeS}}, \code{\link{symm}}
 }
 \examples{
 ## Define population covariance
@@ -76,11 +76,11 @@ p = 25
 n = 1000
 X = matrix(rnorm(n*p), nrow = n, ncol = p)
 colnames(X)[1:25] = letters[1:25]
-Truecov <- cov(X)
+Truecov <- covML(X)
 
 ## Obtain sample
 samples <- X[sample(nrow(X), 10), ]
-Cxx <- cov(samples)
+Cxx <- covML(samples)
 
 ## Obtain regularized precision
 P <- ridgeS(Cxx, 10, type = "Alt")

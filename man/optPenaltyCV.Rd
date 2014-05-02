@@ -5,14 +5,16 @@ Select optimal penalty parameter by leave-one-out cross-validation
 }
 \description{
 Function that selects the optimal penalty parameter for the \code{\link{ridgeS}} call by usage of leave-one-out cross-validation.
+Its output includes (a.o.) the precision matrix under the optimal value of the penalty parameter.
 }
 \usage{
-optPenaltyCV(Y, lambdaMin, lambdaMax, step, type = "Alt", target = diag(1/diag(cov(Y))),
-targetScale = TRUE, output = "all", graph = TRUE, verbose = TRUE)
+optPenaltyCV(Y, lambdaMin, lambdaMax, step, type = "Alt", target = 
+diag(1/diag(covML(Y))), targetScale = TRUE, output = "light", graph = TRUE, 
+verbose = TRUE)
 }
 \arguments{
   \item{Y}{
-Data matrix.
+Data \code{matrix}. Variables assumed to be represented by columns.
 }
   \item{lambdaMin}{
 A \code{numeric} giving the minimum value for the penalty parameter.
@@ -21,7 +23,7 @@ A \code{numeric} giving the minimum value for the penalty parameter.
 A \code{numeric} giving the maximum value for the penalty parameter.
 }
   \item{step}{
-A \code{numeric} determining the coarseness in moving through the grid [\code{lambdaMin}, \code{lambdaMax}].
+An \code{integer} determining the number of steps in moving through the grid [\code{lambdaMin}, \code{lambdaMax}].
 }
   \item{type}{
 A \code{character} indicating the type of ridge estimator to be used. Must be one of: "Alt", "ArchI", "ArchII".
@@ -45,26 +47,26 @@ A \code{logical} indicating if intermediate output should be printed on screen.
 \details{
 The function calculates a cross-validated negative log-likelihood score (using a regularized ridge estimator for the precision matrix) for each 
 value of the penalty parameter contained in the search grid by way of leave-one-out cross-validation. The value of the penalty parameter 
-that achieves the lowest cross-validated negative log-likelihood score is deemed optimal. The penalty parameter must be positive such that lambdaMin must 
-be a positive scalar. The maximum allowable value of lambdaMax depends on the type of ridge estimator employed. For details on the type of 
+that achieves the lowest cross-validated negative log-likelihood score is deemed optimal. The penalty parameter must be positive such that \code{lambdaMin} must 
+be a positive scalar. The maximum allowable value of \code{lambdaMax} depends on the type of ridge estimator employed. For details on the type of 
 ridge estimator one may use (one of: "Alt", "ArchI", "ArchII") see \code{\link{ridgeS}}. In case one employs target shrinkage (Type I ridge
 estimation: see \code{\link{ridgeS}}) and one employs the default target (diagonal matrix with inverse sample variances as the entries), one 
 may choose to let the default target be dependent on the complete data sample or to let the target be dependent on the leave-one-out cross-validation
-sample (meaning \code{targetScale} must be \code{TRUE}). The ouput consists of an object of class list (see below). When \code{output = "light"} only 
+sample (meaning \code{targetScale} must be \code{TRUE}). The ouput consists of an object of class list (see below). When \code{output = "light"} (default) only 
 the \code{optLambda} and \code{optPrec} elements of the list are given.
 }
 \value{
 An object of class list:
 \item{optLambda}{A \code{numeric} giving the optimal value of the penalty parameter.}
 \item{optPrec}{A \code{matrix} representing the precision matrix of the chosen type (see \code{\link{ridgeS}}) under the optimal value of the penalty parameter.}
-\item{lambdas}{A \code{numeric} vector representing all values of the penalty parameter for which cross-validation was performed.}
-\item{LLs}{A \code{numeric} vector representing the mean of cross-validated negative log-likelihoods for each value of the penalty parameter given in \code{lambdas}.}
+\item{lambdas}{A \code{numeric} vector representing all values of the penalty parameter for which cross-validation was performed; Only given when \code{output = "all"}.}
+\item{LLs}{A \code{numeric} vector representing the mean of cross-validated negative log-likelihoods for each value of the penalty parameter given in \code{lambdas}; Only given when \code{output = "all"}.}
 }
 \author{
 Carel F.W. Peeters <cf.peeters@vumc.nl>, Wessel N. van Wieringen
 }
 \seealso{
-\code{\link{ridgeS}}
+\code{\link{ridgeS}}, \code{\link{optPenalty.aLOOCV}}
 }
 \examples{
 ## Obtain some (high-dimensional) data
@@ -75,7 +77,7 @@ X = matrix(rnorm(n*p), nrow = n, ncol = p)
 colnames(X)[1:25] = letters[1:25]
 
 ## Obtain regularized precision under optimal penalty
-OPT <- optPenaltyCV(X, 15, 30, 20, output = "light")
+OPT  <- optPenaltyCV(X, lambdaMin = 12, lambdaMax = 20, step = 10); OPT	
 OPT$optLambda	# Optimal penalty
 OPT$optPrec	# Regularized precision under optimal penalty
 }
