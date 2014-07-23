@@ -59,7 +59,7 @@ Kullback, S. and Leibler, R.A. (1951). On Information and Sufficiency. Annals of
 Wessel N. van Wieringen, Carel F.W. Peeters <cf.peeters@vumc.nl>
 }
 \seealso{
-\code{\link{covML}}, \code{\link{ridgeS}}, \code{\link{symm}}
+\code{\link{covML}}, \code{\link{ridgeS}}
 }
 \examples{
 ## Define population
@@ -78,7 +78,7 @@ mean1 <- colMeans(samples)
 
 ## Regularize singular Cov1
 P <- ridgeS(Cov1, 10)
-CovR <- symm(solve(P)) 
+CovR <- solve(P)
 
 ## Obtain KL divergence
 KLdiv(mean1, mean0, CovR, Cov0)

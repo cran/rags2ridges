@@ -103,7 +103,7 @@ van Wieringen, W.N. and Peeters, C.F.W. (2014). Ridge Estimation of Inverse Cova
 Carel F.W. Peeters <cf.peeters@vumc.nl>, Wessel N. van Wieringen
 }
 \seealso{
-\code{\link{ridgeS}}, \code{\link{optPenaltyCV}}, \code{\link{optPenalty.aLOOCV}}, \code{\link{sparsify}}
+\code{\link{ridgeS}}, \code{\link{optPenalty.LOOCV}}, \code{\link{optPenalty.aLOOCV}}, \code{\link{sparsify}}
 }
 \examples{
 ## Obtain some (high-dimensional) data
@@ -114,11 +114,11 @@ X = matrix(rnorm(n*p), nrow = n, ncol = p)
 colnames(X)[1:25] = letters[1:25]
 
 ## Obtain regularized precision under optimal penalty
-OPT <- optPenaltyCV(X, 12, 20, 10)
+OPT <- optPenalty.LOOCV(X, lambdaMin = .5, lambdaMax = 30, step = 100)
 
-## Determine support regularized (standardized) precision under optimal penalty
-PC0 <- sparsify(symm(OPT$optPrec), type = "localFDR")
+## Determine support regularized standardized precision under optimal penalty
+PC0 <- sparsify(symm(OPT$optPrec), threshold = "localFDR")$sparseParCor
 
 ## Obtain graphical representation
-Ugraph(PC0, type = "fancy", cut = 0.05)
+Ugraph(PC0, type = "fancy", cut = 0.07)
 }

@@ -40,7 +40,7 @@ Harville, D.A.(1997). Matrix algebra from a statistician's perspective. New York
 Wessel N. van Wieringen, Carel F.W. Peeters <cf.peeters@vumc.nl>
 }
 \seealso{
-\code{\link{covML}}, \code{\link{ridgeS}}, \code{\link{symm}}
+\code{\link{covML}}, \code{\link{ridgeS}}
 }
 \examples{
 ## Obtain some (high-dimensional) data
@@ -58,5 +58,5 @@ Seval$trace
 
 ## Evaluate numerical properties precision matrix after regularization
 P <- ridgeS(Cx, lambda = 10, type = 'Alt')
-Peval <- evaluateS(symm(P)); Peval
+Peval <- evaluateS(P); Peval
 }

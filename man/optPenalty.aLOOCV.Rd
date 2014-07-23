@@ -10,7 +10,7 @@ penalty parameter.
 }
 \usage{
 optPenalty.aLOOCV(Y, lambdaMin, lambdaMax, step, type = "Alt", target = 
-diag(1/diag(covML(Y))), output = "light", graph = TRUE, verbose = TRUE)
+default.target(covML(Y)), output = "light", graph = TRUE, verbose = TRUE)
 }
 \arguments{
   \item{Y}{
@@ -38,14 +38,14 @@ A \code{character} indicating if the output is either heavy or light. Must be on
 A \code{logical} indicating if the grid search for the optimal penalty parameter should be visualized.
 }
   \item{verbose}{
-A \code{logical} indicating if intermediate output should be printed on screen.
+A \code{logical} indicating if information on progress should be printed on screen.
 }
 }
 \details{
 The function calculates an approximate leave-one-out cross-validated (aLOOCV) negative log-likelihood score (using a regularized ridge estimator for the precision matrix) for each 
 value of the penalty parameter contained in the search grid. The utilized aLOOCV score was proposed by Lian (2011) and Vujacic et al. (2014).
 The aLOOCV negative log-likelihood score is computationally more efficient than its non-approximate counterpart (see
-\code{\link{optPenaltyCV}}). For details on the aLOOCV negative log-likelihood score see Lian (2011) and Vujacic et al (2014).
+\code{\link{optPenalty.LOOCV}}). For details on the aLOOCV negative log-likelihood score see Lian (2011) and Vujacic et al (2014).
 
 The value of the penalty parameter that achieves the lowest aLOOCV negative log-likelihood score is deemed optimal. The penalty parameter must be positive such that \code{lambdaMin} must 
 be a positive scalar. The maximum allowable value of \code{lambdaMax} depends on the type of ridge estimator employed. For details on the type of 
@@ -72,7 +72,7 @@ penalized Gaussian graphical models. arXiv: 1309.6216v2 [stat.ME].
 Carel F.W. Peeters <cf.peeters@vumc.nl>, Wessel N. van Wieringen
 }
 \seealso{
-\code{\link{ridgeS}}, \code{\link{optPenaltyCV}}
+\code{\link{ridgeS}}, \code{\link{optPenalty.LOOCV}}, \code{\link{default.target}}
 }
 \examples{
 ## Obtain some (high-dimensional) data
@@ -83,7 +83,7 @@ X = matrix(rnorm(n*p), nrow = n, ncol = p)
 colnames(X)[1:25] = letters[1:25]
 
 ## Obtain regularized precision under optimal penalty
-OPT  <- optPenalty.aLOOCV(X, lambdaMin = .001, lambdaMax = 25, step = 100); OPT	
+OPT  <- optPenalty.aLOOCV(X, lambdaMin = .001, lambdaMax = 30, step = 400); OPT	
 OPT$optLambda	# Optimal penalty
 OPT$optPrec	# Regularized precision under optimal penalty
 }

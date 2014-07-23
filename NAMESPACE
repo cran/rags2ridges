@@ -1,11 +1,15 @@
 import("GeneNet")
 
-import("expm")
+importFrom("expm", sqrtm)
 
-import("ggplot2")
+importFrom("ggplot2", ggplot, aes, geom_tile, scale_fill_gradient2, theme, element_blank, element_text, xlab, ylab, ylim, ggtitle)
 
-import("igraph")
+importFrom("igraph", graph.adjacency, delete.vertices, E, degree, betweenness, closeness)
 
 import("reshape")
+
+importFrom("Hmisc", minor.tick)
+
+importFrom("stats", cov2cor)
 
 exportPattern("^[[:alpha:]]+")

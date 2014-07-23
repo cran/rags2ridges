@@ -14,6 +14,49 @@ ridge estimators can be found in van Wieringen and Peeters (2014) and encapsulat
 matrix. The estimators are analytic and enable estimation in large \eqn{p} small \eqn{n} settings. Supporting functions to employ these estimators in a graphical
 modeling setting are also given. These supporting functions enable, a.o., the determination of the optimal value of the penalty parameter, the determination of 
 the support of a shrunken precision estimate, as well as various visualization options.
+
+Function overview:
+\itemize{
+\item Function for (proper) ridge estimation of the precision matrix
+	\itemize{
+	\item \code{\link{ridgeS}}
+	}
+\item Functions for penalty parameter selection
+	\itemize{
+	\item \code{\link{conditionNumberPlot}}
+	\item \code{\link{optPenalty.aLOOCV}}
+	\item \code{\link{optPenalty.LOOCV}}
+	}
+\item Functions for loss/entropy/fit evaluation
+	\itemize{
+	\item \code{\link{evaluateSfit}}
+	\item \code{\link{KLdiv}}
+	\item \code{\link{loss}}
+	}
+\item Function for support determination
+	\itemize{
+	\item \code{\link{sparsify}}
+	}
+\item Functions for (network) visualization
+	\itemize{
+	\item \code{\link{edgeHeat}}
+	\item \code{\link{ridgePathS}}
+	\item \code{\link{Ugraph}}
+	}
+\item Function for network statistics
+	\itemize{
+	\item \code{\link{GGMnetworkStats}}
+	}
+\item Support functions
+	\itemize{
+	\item \code{\link{adjacentMat}}
+	\item \code{\link{covML}}
+	\item \code{\link{default.target}}
+	\item \code{\link{evaluateS}}
+	\item \code{\link{pcor}}
+	\item \code{\link{symm}}
+	}
+}
 }
 \author{
 Carel F.W. Peeters, Wessel, N. van Wieringen

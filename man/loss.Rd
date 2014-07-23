@@ -67,7 +67,7 @@ Van Wieringen, W.N. and Peeters, C.F.W. (2014). Ridge Estimation of Inverse Cova
 Carel F.W. Peeters <cf.peeters@vumc.nl>, Wessel N. van Wieringen
 }
 \seealso{
-\code{\link{covML}}, \code{\link{ridgeS}}, \code{\link{symm}}
+\code{\link{covML}}, \code{\link{ridgeS}}
 }
 \examples{
 ## Define population covariance
@@ -87,5 +87,5 @@ P <- ridgeS(Cxx, 10, type = "Alt")
 
 ## Evaluate estimated precision against population 
 ## precision under Frobenius loss
-loss(symm(P), Truecov, precision = FALSE, type = "frobenius")
+loss(P, Truecov, precision = FALSE, type = "frobenius")
 }

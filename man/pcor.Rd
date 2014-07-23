@@ -29,7 +29,7 @@ A partial correlation \code{matrix} or a standardized precision \code{matrix}.
 Carel F.W. Peeters <cf.peeters@vumc.nl>, Wessel N. van Wieringen
 }
 \seealso{
-\code{\link{ridgeS}}, \code{\link{covML}}, \code{\link{symm}}
+\code{\link{ridgeS}}, \code{\link{covML}}
 }
 \examples{
 ## Obtain some (high-dimensional) data
@@ -44,5 +44,5 @@ Cx <- covML(X)
 P <- ridgeS(Cx, lambda = 10, type = "Alt")
 
 ## Obtain partial correlation matrix
-pcor(symm(P))
+pcor(P)
 }

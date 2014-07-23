@@ -36,7 +36,7 @@ A \code{character} giving the main figure title.
 }
 }
 \details{
-This function utilizes \code{\link{ggplot2}} (Wickham, 2009) to visualize a matrix as a heatmap: a false color plot in which the
+This function utilizes \href{http://cran.r-project.org/web/packages/ggplot2/index.html}{ggplot2} (Wickham, 2009) to visualize a matrix as a heatmap: a false color plot in which the
 individual matrix entries are represented by colors. \code{lowColor} determines the color scale for matrix entries in the negative range.
 \code{highColor} determines the color scale for matrix entries in the positive range. For the colors supported
 by the arguments \code{lowColor} and \code{highColor}, see \url{www.stat.columbia.edu/~tzheng/files/Rcolor.pdf}. White entries in the plot
@@ -70,7 +70,7 @@ Cx <- covML(X)
 P <- ridgeS(Cx, lambda = 10, type = "Alt")
 
 ## Obtain sparsified partial correlation matrix
-PC0 <- sparsify(symm(P), type = "localFDR", FDRcut = .8)
+PC0 <- sparsify(P, threshold = "localFDR", FDRcut = .8)$sparseParCor
 
 ## Visualize sparsified partial correlation matrix as heatmap
 edgeHeat(PC0)

@@ -25,7 +25,7 @@ Function returns an adjacency \code{matrix}.
 Carel F.W. Peeters <cf.peeters@vumc.nl>, Wessel N. van Wieringen
 }
 \seealso{
-\code{\link{ridgeS}}, \code{\link{sparsify}}, \code{\link{edgeHeat}}, \code{\link{Ugraph}}
+\code{\link{ridgeS}}, \code{\link{covML}}, \code{\link{sparsify}}, \code{\link{edgeHeat}}, \code{\link{Ugraph}}
 }
 \examples{
 ## Obtain some (high-dimensional) data
@@ -34,14 +34,14 @@ n = 10
 set.seed(333)
 X = matrix(rnorm(n*p), nrow = n, ncol = p)
 colnames(X)[1:25] = letters[1:25]
-Cx <- cov(X)
+Cx <- covML(X)
 
 ## Obtain regularized precision matrix
 P <- ridgeS(Cx, lambda = 10, type = "Alt")
 
 ## Obtain sparsified partial correlation matrix
-PC0 <- sparsify(symm(P), type = "localFDR", FDRcut = .8)
+PC0 <- sparsify(P, threshold = "localFDR", FDRcut = .8)
 
 ## Obtain adjacency matrix
-adjacentMat(PC0)
+adjacentMat(PC0$sparsePrecision)
 }

@@ -34,7 +34,7 @@ X = matrix(rnorm(n*p), nrow = n, ncol = p)
 colnames(X)[1:25] = letters[1:25]
 
 ## Obtain regularized precision under optimal penalty
-OPT <- optPenaltyCV(X, 12, 20, 10)
+OPT <- optPenalty.LOOCV(X, 10, 30, 10, target = diag(diag(1/covML(X))))
 
 ## Check symmetry
 ## OPT$optPrec is symmetric by definition

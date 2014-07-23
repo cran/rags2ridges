@@ -7,14 +7,17 @@
 ##			Dept. of Epidemiology & Biostatistics
 ##			VU University medical center
 ##			Amsterdam, the Netherlands
-## Email:		cf.peeters@vumc.nl; w.vanwieringen@vumc.nl
+## Email:		cf.peeters@vumc.nl
 ## 
-## Version:		1.2
-## Last Update:	01/05/2014
+## Version:		1.3
+## Last Update:	21/07/2014
 ## Description:	Ridge estimation, with supporting functions, for high-dimensional precision matrices
-## Publication:	Wessel N. van Wieringen & Carel F.W. Peeters (2014)
+##
+## Publications:	[1] Wessel N. van Wieringen & Carel F.W. Peeters (2014)
 ##			"Ridge Estimation of Inverse Covariance Matrices for High-Dimensional Data"
 ##			arXiv:1403.0904 [stat.ME]. 
+## 			[2] Carel F.W. Peeters & Wessel N. van Wieringen (in preparation)
+##			"The Spectral Condition Number Plot for Regularization Parameter Selection"
 ##
 ###########################################################################################################
 ###########################################################################################################
@@ -85,6 +88,82 @@
 	#####################################################################################################
 
 	return((sum(abs((O %*% C - diag(ncol(O))))^2)))
+}
+
+
+
+.eigShrink <- function(dVec, lambda, const = 0){
+	#####################################################################################################
+	# - Function that shrinks the eigenvalues in an eigenvector
+	# - Shrinkage is that of rotation equivariant alternative ridge estimator
+	# - Main use is in avoiding expensive matrix square root when choosing a target that leads to a
+	#   rotation equivariant version of the alternative ridge estimator
+	# - dVec   > numeric vector containing the eigenvalues of a matrix S
+	# - lambda > penalty parameter
+	# - const  > a constant, default = 0
+	#####################################################################################################
+
+	Evector <- (dVec - lambda * const)
+	return(sqrt(lambda + Evector^2/4) + Evector/2)
+}
+
+
+
+.ridgeSi <- function(S, lambda, type = "Alt", target = default.target(S)){
+	#####################################################################################################
+	# - Hidden function that calculates Ridge estimators of a covariance matrix
+	# - Function is mirror image main routine 'ridgeS'
+	# - Main use is to circumvent (unnecessary) inversion (especially in 'conditionNumberPlot' function)
+	# - S       > sample covariance matrix
+	# - lambda  > penalty parameter (choose in accordance with type of Ridge estimator)
+	# - type    > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
+	# - Alt     > van Wieringen-Peeters alternative ridge estimator of a covariance matrix
+	# - ArchI   > Archetypal I ridge estimator of a covariance matrix
+	# - ArchII  > Archetypal II ridge estimator of a covariance matrix
+	# - target  > target (precision terms) for Type I estimators, default = default.target(S)
+	#
+	# - NOTES:
+	# - When type = "Alt" and target is p.d., one obtains the van Wieringen-Peeters type I estimator
+	# - When type = "Alt" and target is null-matrix, one obtains the van Wieringen-Peeters type II est.
+	# - When target is not the null-matrix it is expected to be p.d. for the vWP type I estimator
+	# - The target is always expected to be p.d. in case of the archetypal I estimator
+	# - When type = "Alt" and target is null matrix or of form c * diag(p), a rotation equivariant
+	#   estimator ensues. In these cases the expensive matrix square root can be circumvented
+	#####################################################################################################
+
+	# Alternative estimator
+	if (type == "Alt"){
+		if (all(target == 0)){
+			Spectral  <- eigen(S, symmetric = TRUE)
+			Eigshrink <- .eigShrink(Spectral$values, lambda)
+			C_Alt     <- Spectral$vectors %*% diag(Eigshrink) %*% t(Spectral$vectors)
+			colnames(C_Alt) = rownames(C_Alt) <- colnames(S)
+			return(C_Alt)
+		} else if (all(target[!diag(nrow(target))] == 0) & (length(unique(diag(target))) == 1)){
+			varPhi    <- unique(diag(target))
+			Spectral  <- eigen(S, symmetric = TRUE)
+			Eigshrink <- .eigShrink(Spectral$values, lambda, const = varPhi)
+			C_Alt     <- Spectral$vectors %*% diag(Eigshrink) %*% t(Spectral$vectors)
+			colnames(C_Alt) = rownames(C_Alt) <- colnames(S)
+			return(C_Alt)
+		} else {
+			D     <- (S - lambda * target)
+			C_Alt <- D/2 + sqrtm((D %*% D)/4 + lambda * diag(nrow(S)))
+			return(C_Alt)
+		}
+	}
+
+	# Archetypal I
+	if (type == "ArchI"){
+		C_ArchI <- (1-lambda) * S + lambda * solve(target)
+		return(C_ArchI)
+	}
+
+	# Archetypal II
+	if (type == "ArchII"){
+		C_ArchII <- S + lambda * diag(nrow(S))
+		return(C_ArchII)
+	}
 }
 
 
@@ -214,26 +293,26 @@ evaluateS <- function(S, verbose = TRUE){
 		Sproperties$posEigen  <- all(evs > 0)
 
 		# Is S diagonally dominant?
-		Sproperties$dd <- all(abs(cov2cor(S)[upper.tri(S)]) < 1)
+		Sproperties$diagDom <- all(abs(cov2cor(S)[upper.tri(S)]) < 1)
 
 		# Trace and determinant S
 		Sproperties$trace <- sum(diag(S))
 		Sproperties$det   <- det(S)
 
 		# Spectral condition number S
-		Sproperties$condNumber <- max(evs) / min(evs)	
+		Sproperties$condNumber <- abs(max(evs) / min(evs))	
 
 		if (verbose){
-			cat("Properties of S:", "\n")
+			cat("Properties of input matrix:", "\n")
 			cat("----------------------------------------", "\n")
-			cat(paste("-> symmetric : ", Sproperties$symm, sep=""), "\n")
-			cat(paste("-> eigenvalues real : ", Sproperties$realEigen, sep=""), "\n")
-			cat(paste("-> eigenvalues > 0 : ", Sproperties$posEigen, sep=""), "\n")
-			cat(paste("-> diag. dominant : ", Sproperties$dd, sep=""), "\n")
+			cat(paste("       symmetric : ", Sproperties$symm, sep=""), "\n")
+			cat(paste("eigenvalues real : ", Sproperties$realEigen, sep=""), "\n")
+			cat(paste(" eigenvalues > 0 : ", Sproperties$posEigen, sep=""), "\n")
+			cat(paste("  diag. dominant : ", Sproperties$diagDom, sep=""), "\n")
 	 		cat("", "\n")
-			cat(paste("-> trace : ", round(Sproperties$trace, 5), sep=""), "\n")
-			cat(paste("-> determinant : ", round(Sproperties$det, 5), sep=""), "\n")
-			cat(paste("-> cond. number : ", round(Sproperties$condNumber, 5), sep=""), "\n")
+			cat(paste("           trace : ", round(Sproperties$trace, 5), sep=""), "\n")
+			cat(paste("     determinant : ", round(Sproperties$det, 5), sep=""), "\n")
+			cat(paste(" l2 cond. number : ", round(Sproperties$condNumber, 5), sep=""), "\n")
 			cat("----------------------------------------", "\n")
 		}
 
@@ -280,6 +359,110 @@ pcor <- function(P, pc = TRUE){
 
 
 
+default.target <- function(S, type = "DAIE", fraction = 1e-04, const){ 
+	#####################################################################################################
+	# - Function that generates a (data-driven) default target for usage in ridge-type shrinkage estimation
+	# - The target that is generated is to be understood in precision terms
+	# - See function 'ridgeS'
+	# S        > sample covariance/correlation matrix
+	# type     > character determining the type of default target; default = "DAIE" (see notes below)
+	# fraction > fraction of largest eigenvalue below which an eigenvalue is considered zero 
+	#            Only when type = "DAIE"
+	# const    > numeric constant that represents the partial variance. Only when type = "DCPV"
+	#
+	# Notes:
+	# - The van Wieringen-Peeters type I estimator and the archetypal I estimator utilize a p.d. target
+	# - DAIE: diagonal average inverse eigenvalue
+	#   Diagonal matrix with average of inverse nonzero eigenvalues of S as entries 
+	# - DUPV: diagonal unit partial variance
+	#   Diagonal matrix with unit partial variance as entries (identity matrix)
+	# - DAPV: diagonal average partial variance
+	#   Diagonal matrix with average of inverse variances of S as entries
+	# - DCPV: diagonal constant partial variance
+	#   Diagonal matrix with constant partial variance as entries. Allows one to use other constant than
+	#   [DAIE, DUPV, DAPV, and in a sense Null]
+	# - DEPV: diagonal empirical partial variance
+	#   Diagonal matrix with the inverse variances of S as entries
+	# - Null: Null matrix
+	#   Matrix with only zero entries
+	# - All but DEPV and Null lead to rotation equivariant alternative and archetype I ridge estimators
+	# - Null also leads to a rotation equivariant alternative Type II estimator
+	#####################################################################################################
+
+	# Dependencies
+	# require("base")
+
+	if (!is.matrix(S)){
+		stop("Input (S) should be a matrix")
+	} 
+	else if (!isSymmetric(S)){
+		stop("Input (S) should be a symmetric matrix")
+	}
+	else if (class(type) != "character"){
+		stop("Input (type) is of wrong class")
+	}
+	else if (!(type %in% c("DAIE", "DUPV", "DAPV", "DCPV", "DEPV", "Null"))){
+		stop("type should be one of {'DAIE', 'DUPV', 'DAPV', 'DCPV', 'DEPV', 'Null'}")
+	}
+	else {
+		# Compute and return a default target matrix
+		# Diagonal matrix with average of inverse nonzero eigenvalues of S as entries 
+		if (type == "DAIE"){
+			if (class(fraction) != "numeric"){
+				stop("Input (fraction) is of wrong class")
+			} else if (length(fraction) != 1){
+				stop("Length fraction must be one")
+			} else if (fraction < 0 | fraction > 1){
+				stop("Input (fraction) is expected to be in the interval [0,1]")
+			} else {
+				Eigs   <- eigen(S, symmetric = TRUE, only.values = TRUE)$values
+				const  <- mean(1/(Eigs[Eigs >= Eigs[1]*fraction]))
+				target <- const * diag(ncol(S))
+			}
+		}
+
+		# Diagonal matrix with unit partial variance as entries
+		if (type == "DUPV"){
+			target <- diag(ncol(S))
+		}
+
+		# Diagonal matrix with average empirical partial variances as entries
+		if (type == "DAPV"){
+			apv    <- mean(1/diag(S))
+			target <- apv * diag(ncol(S))
+		}
+
+		# Diagonal matrix with constant partial variance as entries
+		if (type == "DCPV"){
+			if (class(const) != "numeric"){
+				stop("Input (const) is of wrong class")
+			} else if (length(const) != 1){
+				stop("Length 'const' must be one")
+			} else if (const <= 0 | const > .Machine$double.xmax){
+				stop("Input (const) is expected to be in the interval (0, Inf)")
+			} else {
+				target <- const * diag(ncol(S))
+			}
+		}
+
+		# Diagonal matrix with empirical partial variances as entries
+		if (type == "DEPV"){
+			target <- diag(1/diag(S))
+		}
+
+		# Null matrix
+		if (type == "Null"){
+			target <- matrix(0, ncol(S), nrow(S))
+		}
+
+		# Return
+		colnames(target) = rownames(target) <- rownames(S)
+		return(target)
+	}
+}
+
+
+
 
 ##---------------------------------------------------------------------------------------------------------
 ## 
@@ -287,7 +470,7 @@ pcor <- function(P, pc = TRUE){
 ##
 ##---------------------------------------------------------------------------------------------------------
 
-ridgeS <- function(S, lambda, type = "Alt", target = diag(1/diag(S))){
+ridgeS <- function(S, lambda, type = "Alt", target = default.target(S)){
 	#####################################################################################################
 	# - Function that calculates Ridge estimators of a precision matrix
 	# - S       > sample covariance matrix
@@ -296,14 +479,15 @@ ridgeS <- function(S, lambda, type = "Alt", target = diag(1/diag(S))){
 	# - Alt     > van Wieringen-Peeters alternative ridge estimator of a precision matrix
 	# - ArchI   > Archetypal I ridge estimator of a precision matrix
 	# - ArchII  > Archetypal II ridge estimator of a precision matrix
-	# - target  > target (precision terms) for Type I estimators, default = diag(1/diag(S))
+	# - target  > target (precision terms) for Type I estimators, default = default.target(S)
 	#
 	# - NOTES:
-	# - All types are rotation equivariant
 	# - When type = "Alt" and target is p.d., one obtains the van Wieringen-Peeters type I estimator
 	# - When type = "Alt" and target is null-matrix, one obtains the van Wieringen-Peeters type II est.
 	# - When target is not the null-matrix it is expected to be p.d. for the vWP type I estimator
 	# - The target is always expected to be p.d. in case of the archetypal I estimator
+	# - When type = "Alt" and target is null matrix or of form c * diag(p), a rotation equivariant
+	#   estimator ensues. In these cases the expensive matrix square root can be circumvented
 	#####################################################################################################
 
 	# Dependencies
@@ -327,10 +511,24 @@ ridgeS <- function(S, lambda, type = "Alt", target = diag(1/diag(S))){
 				stop("Shrinkage target should be symmetric")
 			} else if (dim(target)[1] != dim(S)[1]){
 				stop("S and target should be of the same dimension")
-			} else if (!identical(target, mat.or.vec(nrow(S),ncol(S))) & any(eigen(target, only.values = T)$values <= 0)){
-				stop("When target is not a null-matrix it should be p.d.")
+			} else if (!all(target == 0) & any(eigen(target, symmetric = TRUE, only.values = T)$values <= 0)){
+				stop("When target is not a null-matrix it should be p.d. for this type of ridge estimator")
+			} else if (all(target == 0)){
+				Spectral  <- eigen(S, symmetric = TRUE)
+				Eigshrink <- .eigShrink(Spectral$values, lambda)
+				P_Alt     <- solve(Spectral$vectors %*% diag(Eigshrink) %*% t(Spectral$vectors))
+				colnames(P_Alt) = rownames(P_Alt) <- colnames(S)
+				return(P_Alt)
+			} else if (all(target[!diag(nrow(target))] == 0) & (length(unique(diag(target))) == 1)){
+				varPhi    <- unique(diag(target))
+				Spectral  <- eigen(S, symmetric = TRUE)
+				Eigshrink <- .eigShrink(Spectral$values, lambda, const = varPhi)
+				P_Alt     <- solve(Spectral$vectors %*% diag(Eigshrink) %*% t(Spectral$vectors))
+				colnames(P_Alt) = rownames(P_Alt) <- colnames(S)
+				return(P_Alt)
 			} else {
-				P_Alt <- solve((S - lambda * target)/2 + sqrtm(((S - lambda * target) %*% (S - lambda * target))/4 + lambda * diag(nrow(S))))
+				E     <- (S - lambda * target)
+				P_Alt <- solve(E/2 + sqrtm((E %*% E)/4 + lambda * diag(nrow(S))))
 				return(P_Alt)
 			}
 		}
@@ -343,8 +541,8 @@ ridgeS <- function(S, lambda, type = "Alt", target = diag(1/diag(S))){
 				stop("Shrinkage target should be symmetric")
 			} else if (dim(target)[1] != dim(S)[1]){
 				stop("S and target should be of the same dimension")
-			} else if (any(eigen(target, only.values = T)$values <= 0)){
-				stop("Target should be p.d.")
+			} else if (any(eigen(target, symmetric = TRUE, only.values = T)$values <= 0)){
+				stop("Target should always be p.d. for this type of ridge estimator")
 			} else {
 				P_ArchI <- solve((1-lambda) * S + lambda * solve(target))
 				return(P_ArchI)
@@ -368,8 +566,8 @@ ridgeS <- function(S, lambda, type = "Alt", target = diag(1/diag(S))){
 ##
 ##---------------------------------------------------------------------------------------------------------
 
-optPenaltyCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target = diag(1/diag(covML(Y))), 
-                         targetScale = TRUE, output = "light", graph = TRUE, verbose = TRUE){ 
+optPenalty.LOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target = default.target(covML(Y)), 
+                         output = "light", graph = TRUE, verbose = TRUE){ 
 	#####################################################################################################
 	# - Function that selects the optimal penalty parameter by leave-one-out cross-validation
 	# - Y           > (raw) Data matrix, variables in columns
@@ -377,9 +575,7 @@ optPenaltyCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target = d
 	# - lambdaMax   > maximum value penalty parameter (dependent on 'type')
 	# - step        > determines the coarseness in searching the grid [lambdaMin, lambdaMax]
 	# - type        > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
-	# - target      > target (precision terms) for Type I estimators, default = diag(1/diag(covML(Y)))
-	# - targetScale > logical, if TRUE: default target diag(1/diag(S)) is used, where S is based on 
-	#			CV sample; otherwise target is fixed for all CV samples and given by 'target'
+	# - target      > target (precision terms) for Type I estimators, default = default.target(covML(Y))
 	# - output      > must be one of {"all", "light"}, default = "light"
 	# - graph       > Optional argument for visualization optimal penalty selection, default = TRUE
 	# - verbose     > logical indicating if intermediate output should be printed on screen
@@ -426,9 +622,6 @@ optPenaltyCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target = d
 	else if (step <= 0){
 		stop("step should be a positive integer")
 	}
-	else if (class(targetScale) != "logical"){
-		stop("Input (targetScale) is of wrong class")
-	}
 	else if (!(output %in% c("all", "light"))){
 		stop("output should be one of {'all', 'light'}")
 	}
@@ -446,8 +639,7 @@ optPenaltyCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target = d
 			slh <- numeric()
         		for (i in 1:nrow(Y)){
 				S   <- covML(Y[-i,])
-				if (targetScale)  {slh <- c(slh, .LL(t(Y[i,,drop = F]) %*% Y[i,,drop = F], ridgeS(S, lambdas[k], type = type)))}
-				if (!targetScale) {slh <- c(slh, .LL(t(Y[i,,drop = F]) %*% Y[i,,drop = F], ridgeS(S, lambdas[k], type = type, target = target)))}
+				slh <- c(slh, .LL(t(Y[i,,drop = F]) %*% Y[i,,drop = F], ridgeS(S, lambdas[k], type = type, target = target)))
 			}
 			
 			LLs <- c(LLs, mean(slh))
@@ -457,28 +649,31 @@ optPenaltyCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target = d
 		# Visualization
 		optLambda <- min(lambdas[which(LLs == min(LLs))])
 		if (graph){
-			plot(log(lambdas), type = "l", log(LLs), xlab = "log(penalty value)", ylab = "log(cross-validated neg. log-likelihood)", main = type)
+			if (type == "Alt"){Main = "Alternative ridge estimator"}
+			if (type == "ArchI"){Main = "Archetypal I ridge estimator"}
+			if (type == "ArchII"){Main = "Archetypal II ridge estimator"}
+			plot(log(lambdas), type = "l", log(LLs), axes = FALSE, xlab = "ln(penalty value)", ylab = "ln(cross-validated neg. log-likelihood)", main = Main)
+			axis(2, ylim = c(log(min(LLs)),log(max(LLs))), col = "black", lwd = 1)
+			axis(1, col = "black", lwd = 1)
 			abline(h = log(min(LLs)), v = log(optLambda), col = "red")
-			legend("topleft", legend = c(paste("min. CV LL: ", round(min(LLs),3), sep = ""), 
+			legend("topright", legend = c(paste("min. LOOCV -LL: ", round(min(LLs),3), sep = ""), 
 			paste("Opt. penalty: ", optLambda, sep = "")), cex = .8)
 		}
 
 		# Return
 		S <- covML(Y)
 		if (output == "all"){
-			if (targetScale) {return(list(optLambda = optLambda, optPrec = ridgeS(S, optLambda, type = type), lambdas = lambdas, LLs = LLs))}
-			if (!targetScale){return(list(optLambda = optLambda, optPrec = ridgeS(S, optLambda, type = type, target = target), lambdas = lambdas, LLs = LLs))}
+			return(list(optLambda = optLambda, optPrec = ridgeS(S, optLambda, type = type, target = target), lambdas = lambdas, LLs = LLs))
 		}
 		if (output == "light"){
-			if (targetScale) {return(list(optLambda = optLambda, optPrec = ridgeS(S, optLambda, type = type)))}
-			if (!targetScale){return(list(optLambda = optLambda, optPrec = ridgeS(S, optLambda, type = type, target = target)))}
+			return(list(optLambda = optLambda, optPrec = ridgeS(S, optLambda, type = type, target = target)))
 		}
 	}
-}   
+}
 
 
 
-optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target = diag(1/diag(covML(Y))), 
+optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target = default.target(covML(Y)), 
                               output = "light", graph = TRUE, verbose = TRUE){
 	#####################################################################################################
 	# - Function that selects the optimal penalty parameter by approximate leave-one-out cross-validation
@@ -487,7 +682,7 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", targe
 	# - lambdaMax   > maximum value penalty parameter (dependent on 'type')
 	# - step        > determines the coarseness in searching the grid [lambdaMin, lambdaMax]
 	# - type        > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
-	# - target      > target (precision terms) for Type I estimators, default = diag(1/diag(covML(Y)))
+	# - target      > target (precision terms) for Type I estimators, default = default.target(covML(Y))
 	# - output      > must be one of {"all", "light"}, default = "light"
 	# - graph       > Optional argument for visualization optimal penalty selection, default = TRUE
 	# - verbose     > logical indicating if intermediate output should be printed on screen
@@ -548,26 +743,80 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", targe
 
 		# Calculate approximate LOOCV scores
 		if (verbose){cat("Calculating approximate LOOCV scores...", "\n")}
-		for (k in 1:length(lambdas)){
-			P    <- ridgeS(S, lambdas[k], type = type, target = target)
-			nLL  <- .5 * .LL(S, P)
-			isum <- numeric()
+		if (type == "Alt" & all(target == 0)){
+			if (!isSymmetric(target)){
+				stop("Shrinkage target should be symmetric")
+			} else if (dim(target)[1] != dim(S)[1]){
+				stop("Covariance matrix based on data input (Y) and target should be of the same dimension")
+			} else {
+				Spectral <- eigen(S, symmetric = TRUE)
+				for (k in 1:length(lambdas)){
+					Eigshrink <- .eigShrink(Spectral$values, lambdas[k])
+					P         <- solve(Spectral$vectors %*% diag(Eigshrink) %*% t(Spectral$vectors))
+					nLL       <- .5 * .LL(S, P)
+					isum      <- numeric()
 
-        		for (i in 1:n){
-				S1   <- t(Y[i,,drop = FALSE]) %*% Y[i,,drop = FALSE]
-				isum <- c(isum, sum((solve(P) - S1) * (P %*% (S - S1) %*% P)))
+        				for (i in 1:n){
+						S1   <- t(Y[i,,drop = FALSE]) %*% Y[i,,drop = FALSE]
+						isum <- c(isum, sum((solve(P) - S1) * (P %*% (S - S1) %*% P)))
+					}
+
+					aLOOCVs <- c(aLOOCVs, nLL + 1/(2 * n^2 - 2 * n) * sum(isum))
+					if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
+				}
+			}					
+		} else if (type == "Alt" & all(target[!diag(nrow(target))] == 0) & (length(unique(diag(target))) == 1)){
+			if (!isSymmetric(target)){
+				stop("Shrinkage target should be symmetric")
+			} else if (dim(target)[1] != dim(S)[1]){
+				stop("Covariance matrix based on data input (Y) and target should be of the same dimension")
+			} else if (any(diag(target) <= 0)){
+				stop("target should be p.d.")
+			} else {
+				varPhi   <- unique(diag(target))
+				Spectral <- eigen(S, symmetric = TRUE)
+				for (k in 1:length(lambdas)){
+					Eigshrink <- .eigShrink(Spectral$values, lambdas[k], const = varPhi)
+					P         <- solve(Spectral$vectors %*% diag(Eigshrink) %*% t(Spectral$vectors))
+					nLL       <- .5 * .LL(S, P)
+					isum      <- numeric()
+
+        				for (i in 1:n){
+						S1   <- t(Y[i,,drop = FALSE]) %*% Y[i,,drop = FALSE]
+						isum <- c(isum, sum((solve(P) - S1) * (P %*% (S - S1) %*% P)))
+					}
+
+					aLOOCVs <- c(aLOOCVs, nLL + 1/(2 * n^2 - 2 * n) * sum(isum))
+					if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
+				}
 			}
+		} else {
+			for (k in 1:length(lambdas)){
+				P    <- ridgeS(S, lambdas[k], type = type, target = target)
+				nLL  <- .5 * .LL(S, P)
+				isum <- numeric()
 
-			aLOOCVs <- c(aLOOCVs, nLL + 1/(2 * n^2 - 2 * n) * sum(isum))
-			if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
+        			for (i in 1:n){
+					S1   <- t(Y[i,,drop = FALSE]) %*% Y[i,,drop = FALSE]
+					isum <- c(isum, sum((solve(P) - S1) * (P %*% (S - S1) %*% P)))
+				}
+
+				aLOOCVs <- c(aLOOCVs, nLL + 1/(2 * n^2 - 2 * n) * sum(isum))
+				if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
+			}
 		}
 
 		# Visualization
 		optLambda <- min(lambdas[which(aLOOCVs == min(aLOOCVs))])
 		if (graph){
-			plot(log(lambdas), type = "l", log(aLOOCVs), xlab = "log(penalty value)", ylab = "log(Approximate LOOCV neg. log-likelihood)", main = type)
+			if (type == "Alt"){Main = "Alternative ridge estimator"}
+			if (type == "ArchI"){Main = "Archetypal I ridge estimator"}
+			if (type == "ArchII"){Main = "Archetypal II ridge estimator"}
+			plot(log(lambdas), type = "l", log(aLOOCVs), axes = FALSE, xlab = "ln(penalty value)", ylab = "ln(Approximate LOOCV neg. log-likelihood)", main = Main)
+			axis(2, ylim = c(log(min(aLOOCVs)),log(max(aLOOCVs))), col = "black", lwd = 1)
+			axis(1, col = "black", lwd = 1)
 			abline(h = log(min(aLOOCVs)), v = log(optLambda), col = "red")
-			legend("topleft", legend = c(paste("min. approx. LOOCV LL: ", round(min(aLOOCVs),3), sep = ""), 
+			legend("topright", legend = c(paste("min. approx. LOOCV -LL: ", round(min(aLOOCVs),3), sep = ""), 
 			paste("Opt. penalty: ", optLambda, sep = "")), cex = .8)
 		}
 
@@ -583,8 +832,9 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", targe
 
 
 
-conditionNumber <- function(S, lambdaMin, lambdaMax, step, type = "Alt", target = diag(1/diag(S)),
-				    verticle = FALSE, value = 1, verbose = TRUE){
+conditionNumberPlot <- function(S, lambdaMin, lambdaMax, step, type = "Alt", target = default.target(S),
+				        norm = "2", rlDist = FALSE, verticle = FALSE, value, main = TRUE, 
+                                nOutput = FALSE, verbose = TRUE){
 	#####################################################################################################
 	# - Function that visualizes the spectral condition number against the regularization parameter
 	# - Can be used to heuristically determine the (minimal) value of the penalty parameter
@@ -598,18 +848,24 @@ conditionNumber <- function(S, lambdaMin, lambdaMax, step, type = "Alt", target 
 	# - lambdaMax > maximum value penalty parameter (dependent on 'type')
 	# - step      > determines the coarseness in searching the grid [lambdaMin, lambdaMax]
 	# - type      > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
-	# - target    > target (precision terms) for Type I estimators, default = diag(1/diag(S))
+	# - target    > target (precision terms) for Type I estimators, default = default.target(S)
+	# - norm      > indicates the norm under which the condition number is to be estimated
+	# - rlDist    > logical indicating if relative distance to set of singular matrices should also be
+	#               plotted. Default = FALSE
 	# - verticle  > optional argument for visualization verticle line in graph output, default = FALSE
 	#               Can be used to indicate the value of, e.g., the optimal penalty as indicated by some
 	#               routine. Can be used to assess if this optimal penalty will lead to a 
 	#               well-conditioned estimate
-	# - value     > indicates constant on which to base verticle line when verticle = TRUE. Default = 1
+	# - value     > indicates constant on which to base verticle line when verticle = TRUE
+	# - main      > logical indicating if plot should contain type of estimator as main title
+	# - nOutput   > logical indicating if numeric output should be given (lambdas and condition numbers)
 	# - verbose   > logical indicating if intermediate output should be printed on screen
 	#####################################################################################################
 
 	# Dependencies
 	# require("base")
 	# require("graphics")
+	# require("Hmisc")
 
 	if (class(verbose) != "logical"){
 		stop("Input (verbose) is of wrong class")
@@ -620,6 +876,9 @@ conditionNumber <- function(S, lambdaMin, lambdaMax, step, type = "Alt", target 
 	if (!is.matrix(S)){
 		stop("S should be a matrix")
 	} 
+	else if (!isSymmetric(S)){
+		stop("S should be a covariance matrix")
+	}
 	else if (class(lambdaMin) != "numeric"){
 		stop("Input (lambdaMin) is of wrong class")
 	} 
@@ -647,26 +906,106 @@ conditionNumber <- function(S, lambdaMin, lambdaMax, step, type = "Alt", target 
 	else if (step <= 0){
 		stop("step should be a positive integer")
 	}
+	else if (!(type %in% c("Alt", "ArchI", "ArchII"))){
+		stop("type should be one of {'Alt', 'ArchI', 'ArchII'}")
+	}
+	else if (!isSymmetric(target)){
+		stop("Shrinkage target should be symmetric")
+	} 
+	else if (dim(target)[1] != dim(S)[1]){
+		stop("S and target should be of the same dimension")
+	}
+	else if (type == "Alt" & !all(target == 0) & any(eigen(target, symmetric = TRUE, only.values = T)$values <= 0)){
+		stop("When target is not a null-matrix it should be p.d.")
+	}
+	else if (type == "ArchI" & lambdaMax > 1){
+		stop("lambda should be in (0,1] for this type of Ridge estimator")
+	}
+	else if (type == "ArchI" & any(eigen(target, symmetric = TRUE, only.values = T)$values <= 0)){
+		stop("Target should be p.d.")
+	}
+	else if (!(norm %in% c("2", "1"))){
+		stop("norm should be one of {'2', '1'}")
+	}
+	else if (class(rlDist) != "logical"){
+		stop("Input (rlDist) is of wrong class")
+	}
 	else if (class(verticle) != "logical"){
 		stop("Input (verticle) is of wrong class")
+	}
+	else if (class(main) != "logical"){
+		stop("Input (main) is of wrong class")
+	}
+	else if (class(nOutput) != "logical"){
+		stop("Input (nOutput) is of wrong class")
 	}
 	else {
 		# Set preliminaries
 		lambdas <- seq(lambdaMin, lambdaMax, len = step)
 		condNR  <- numeric()
 
-		# Calculate spectral condition number ridge estimate on lambda grid
-		if (verbose){cat("Calculating spectral condition numbers...", "\n")}
-		for (k in 1:length(lambdas)){
-			P         <- ridgeS(S, lambdas[k], type = type, target = target)
-			condNR[k] <- as.numeric((eigen(P, only.values = T)$values)[1]/(eigen(P, only.values = T)$values)[nrow(P)])
-			if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
+		if (norm == "2"){
+			# Calculate spectral condition number ridge estimate on lambda grid
+			if (verbose){cat("Calculating spectral condition numbers...", "\n")}
+			if (type == "Alt" & all(target == 0)){
+				Spectral <- eigen(S, symmetric = TRUE, only.values = TRUE)$values
+				for (k in 1:length(lambdas)){
+					Eigshrink <- .eigShrink(Spectral, lambdas[k])
+					condNR[k] <- as.numeric(max(Eigshrink)/min(Eigshrink))
+				}
+			} else if (type == "Alt" & all(target[!diag(nrow(target))] == 0) & (length(unique(diag(target))) == 1)){
+				varPhi   <- unique(diag(target))
+				Spectral <- eigen(S, symmetric = TRUE, only.values = TRUE)$values
+				for (k in 1:length(lambdas)){
+					Eigshrink <- .eigShrink(Spectral, lambdas[k], const = varPhi)
+					condNR[k] <- as.numeric(max(Eigshrink)/min(Eigshrink))
+				}
+			} else {
+				for (k in 1:length(lambdas)){
+					P         <- .ridgeSi(S, lambdas[k], type = type, target = target)
+					Eigs      <- eigen(P, symmetric = TRUE, only.values = TRUE)$values
+					condNR[k] <- as.numeric(max(Eigs)/min(Eigs))
+					if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
+				}
+			}
+		}
+
+		if (norm == "1"){
+			# Calculate approximation to condition number under 1-norm
+			if (verbose){cat("Approximating condition number under 1-norm...", "\n")}
+			for (k in 1:length(lambdas)){
+				P         <- .ridgeSi(S, lambdas[k], type = type, target = target)
+				condNR[k] <- as.numeric(1/rcond(P, norm = "O"))
+				if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
+			}
 		}
 
 		# Visualization
-		plot(log(lambdas), type = "l", condNR, xlab = "log(penalty value)", ylab = "spectral condition number", main = type)
+		if (main){
+			if (type == "Alt"){Main = "Alternative ridge estimator"}
+			if (type == "ArchI"){Main = "Archetypal I ridge estimator"}
+			if (type == "ArchII"){Main = "Archetypal II ridge estimator"}
+		}
+		if (!main){Main = " "}
+		if (norm == "2"){Ylab = "spectral condition number"}
+		if (norm == "1"){Ylab = "condition number under 1-norm"}
+		if (rlDist){par(mar = c(5,4,4,5)+.1)}
+		plot(log(lambdas), type = "l", condNR, axes = FALSE, col = "blue4", xlab = "ln(penalty value)", ylab = Ylab, main = Main)
+		axis(2, ylim = c(0,max(condNR)), col = "black", lwd = 1)
+		axis(1, col = "black", lwd = 1)
+		minor.tick(nx = 10, ny = 0, tick.ratio = .4)
+		if (rlDist){
+			RlDist <- 1/condNR
+			par(new=TRUE)
+			plot(log(lambdas), RlDist,, axes = FALSE, type = "l", col = "green3", xaxt = "n", yaxt = "n", xlab = "", ylab = "")
+			axis(4, col = "black", lwd = 1)
+			mtext("relative distance to singular matrix", side = 4, line = 3)
+			legend("top", col=c("blue4","green3"), lty = 1, legend = c("Condition number", "Relative distance"), cex = .8)
+		}
 		if (verticle){
-			if (class(value) != "numeric"){
+			if (missing(value)){
+				stop("Need to specify input (value)")
+			} else if (class(value) != "numeric"){
 				stop("Input (value) is of wrong class")
 			} else if (length(value) != 1){
 				stop("Input (value) must be a scalar")
@@ -675,6 +1014,11 @@ conditionNumber <- function(S, lambdaMin, lambdaMax, step, type = "Alt", target 
 			} else {
 				abline(v = log(value), col = "red")
 			}
+		}
+
+		# Possible output
+		if (nOutput){
+			return(list(lambdas = lambdas, conditionNumbers = condNR))
 		}
 	}
 }
@@ -688,20 +1032,31 @@ conditionNumber <- function(S, lambdaMin, lambdaMax, step, type = "Alt", target 
 ##
 ##---------------------------------------------------------------------------------------------------------
 
-sparsify <- function(P, type = c("threshold", "localFDR"), threshold = .25, FDRcut = .8, verbose = TRUE){
+sparsify <- function(P, threshold = c("absValue", "localFDR"), absValueCut = .25, FDRcut = .8, verbose = TRUE){
 	#####################################################################################################
 	# - Function that sparsifies/determines support of a partial correlation matrix
-	# - Support can be determined ad-hoc by thresholding or by local FDRs 
+	# - Support can be determined by absolute value thresholding or by local FDRs thresholding
 	# - Local FDR operates on the nonredundant non-diagonal elements of a partial correlation matrix
 	# - Function is to some extent a wrapper around certain 'GeneNet' and 'fdrtool' functions
-	# - P         > (possibly shrunken) precision matrix
-	# - type      > signifies type of sparsification: either thresholding or local FDR testing
-	# - threshold > cut-off for partial correlation elements selection based on thresholding
-	#               Only when type = 'threshold'. Default = .25
-	# - FDRcut    > cut-off for partial correlation element selection based on local FDR
-	#               Only when type = 'localFDR'. Default = .8
-	# - verbose   > logical indicating if intermediate output should be printed on screen
-	#               Only when type = 'localFDR'. Default = TRUE
+	# - P           > (possibly shrunken) precision matrix
+	# - threshold   > signifies type of thresholding: based on either absolute value or local FDR testing
+	# - absValueCut > cut-off for partial correlation elements selection based on absolute value 
+	#                 thresholding. Only when threshold = 'absValue'. Default = .25
+	# - FDRcut      > cut-off for partial correlation element selection based on local FDR thresholding
+	#                 Only when threshold = 'localFDR'. Default = .8
+	# - verbose     > logical indicating if intermediate output should be printed on screen
+	#                 Only when threshold = 'localFDR'. Default = TRUE
+	#
+	# NOTES:
+	# - Input (P) may be the partial correlation matrix or the standardized precision matrix. These are 
+	#   identical up to the signs of off-diagonal elements. Either can be used as it has no effect
+	#   on the thresholding operator and the ensuing sparsified result
+	# - Input (P) may also be the unstandardized precision matrix. The function converts it to the 
+	#   partial correlation matrix
+	# - The function evualtes if the input (P) is a partial correlation/standardized precision matrix or 
+	#   an unstandardized precision matrix. If the input amounts to the latter both the sparsified partial
+	#   correlation matrix and the corresponding sparsified precision matrix are given as output.
+	#   Otherwise, the ouput consists of the sparsified partial correlation/standardized precision matrix
 	#####################################################################################################
 
 	# Dependencies
@@ -721,41 +1076,47 @@ sparsify <- function(P, type = c("threshold", "localFDR"), threshold = .25, FDRc
 	else if (!evaluateS(P, verbose = FALSE)$posEigen){
 		stop("P is expected to be positive definite")
 	}
-	else if (missing(type)){
-		stop("Need to specify type of sparsification ('threshold' or 'localFDR')")
+	else if (missing(threshold)){
+		stop("Need to specify type of sparsification ('absValue' or 'localFDR')")
 	}
-	else if (!(type %in% c("threshold", "localFDR"))){
-		stop("type should be one of {'threshold', 'localFDR'}")
+	else if (!(threshold %in% c("absValue", "localFDR"))){
+		stop("Input (threshold) should be one of {'absValue', 'localFDR'}")
 	}
 	else {
 		# Obtain partial correlation matrix
-		if (sum(diag(P)) == ncol(P)){
-			PC <- P
+		if (all(length(unique(diag(P))) == 1 & unique(diag(P)) == 1)){
+			stan = TRUE
+			PC  <- P
 		} else {
-      		PC <- pcor(P)
+			stan = FALSE
+      		PC  <- pcor(P)
 		}
 
 		# Obtain sparsified matrix
-		if (type == "threshold"){
-			if (class(threshold) != "numeric"){
-				stop("Input (threshold) is of wrong class")
-			} else if (length(threshold) != 1){
-				stop("threshold must be a scalar")
-			} else if (threshold <= 0){
-				stop("threshold must be positive")
+		if (threshold == "absValue"){
+			if (class(absValueCut) != "numeric"){
+				stop("Input (absValueCut) is of wrong class")
+			} else if (length(absValueCut) != 1){
+				stop("Input (absValueCut) must be a scalar")
+			} else if (absValueCut < 0 | absValueCut > 1){
+				stop("Input (absValueCut) must be in the interval [0,1]")
 			} else {
 				PC0 <- PC
-				PC0[!(abs(PC0) >= threshold)] <- 0
+				PC0[!(abs(PC0) >= absValueCut)] <- 0
+				if (!stan){
+					P0 <- P
+					P0[PC0 == 0] <- 0
+				}
 			}
 		}
 
-		if (type == "localFDR"){
+		if (threshold == "localFDR"){
 			if (class(FDRcut) != "numeric"){
 				stop("Input (FDRcut) is of wrong class")
 			} else if (length(FDRcut) != 1){
-				stop("FDRcut must be a scalar")
+				stop("Input (FDRcut) must be a scalar")
 			} else if (FDRcut < 0 | FDRcut > 1){
-				stop("FDRcut must be in the interval [0,1]")
+				stop("Input (FDRcut) must be in the interval [0,1]")
 			} else if (class(verbose) != "logical"){
 				stop("Input (verbose) is of wrong class")
 			} else {
@@ -771,12 +1132,23 @@ sparsify <- function(P, type = c("threshold", "localFDR"), threshold = .25, FDRc
 				for(k in 1:dim(EdgeSet)[1]){
 					PC0[EdgeSet[k,1],EdgeSet[k,2]] = PC0[EdgeSet[k,2],EdgeSet[k,1]] <- PC[EdgeSet[k,1],EdgeSet[k,2]]
 				} 
+				if (!stan){
+					P0 <- P
+					P0[PC0 == 0] <- 0
+				}
 			}
 		}
 
 		# Return
-		colnames(PC0) = rownames(PC0) <- colnames(P)
-		return(PC0)
+		if (stan){
+			colnames(PC0) = rownames(PC0) <- colnames(P)
+			return(PC0)
+		}
+		if (!stan){
+			colnames(PC0) = rownames(PC0) <- colnames(P)
+			colnames(P0)  = rownames(P0)  <- colnames(P)
+			return(list(sparseParCor = PC0, sparsePrecision = P0))
+		}
 	}
 }
 
@@ -785,7 +1157,7 @@ sparsify <- function(P, type = c("threshold", "localFDR"), threshold = .25, FDRc
 
 ##---------------------------------------------------------------------------------------------------------
 ## 
-## Functions for Loss/Entropy Evaluation
+## Functions for Loss/Entropy/Fit Evaluation
 ##
 ##---------------------------------------------------------------------------------------------------------
 
@@ -903,12 +1275,267 @@ KLdiv <- function(Mtest, Mref, Stest, Sref, symmetric = FALSE){
 
 
 
+evaluateSfit <- function(Phat, S, diag = FALSE, fileType = "pdf", nameExt = "", dir = getwd()){
+	############################################################################################
+	# - Function aiding the visual inspection of the fit of the estimated (possibly regularized)
+	#   precision matrix vis-a-vis the sample covariance matrix
+	# - Phat     > (regularized) estimate of the precision matrix
+	# - S        > sample covariance matrix
+	# - diag     > logical determining treatment diagonal elements for plots
+	# - fileType > signifies filetype of output
+	# - nameExt  > character giving extension of default output names.
+	#              Circumvents overwriting of output when working in single directory
+	# - dir      > specifies the directory in which the visual output is stored
+	#############################################################################################
+
+	# Dependencies
+	# require("base")
+	# require("graphics")
+
+	if (!is.matrix(Phat)){
+		stop("Input (Phat) should be a matrix")
+	}
+	else if (!isSymmetric(Phat)){
+		stop("Input (Phat) should be a symmetric matrix")
+	}
+	else if (all(diag(Phat) == 1)){
+		stop("Input (Phat) should be a nonstandardized precision matrix")
+	}
+	else if (!is.matrix(S)){
+		stop("Input (S) should be a matrix")
+	}
+	else if (!isSymmetric(S)){
+		stop("Input (S) should be a symmetric matrix")
+	}
+	else if (all(diag(S) == 1)){
+		stop("Input (S) should be a nonstandardized covariance matrix")
+	}
+	else if (class(diag) != "logical"){
+		stop("Input (diag) is of wrong class")
+	}
+	else if (missing(fileType)){
+		stop("Need to specify type of output file ('pdf' or 'eps')")
+	}
+	else if (!(fileType %in% c("pdf", "eps"))){
+		stop("fileType should be one of {'pdf', 'eps'}")
+	}
+	else if (class(nameExt) != "character"){
+		stop("Input (nameExt) is of wrong class")
+	}
+	else if (class(dir) != "character"){
+		stop("Specify directory for output as 'character'")
+	}
+	else {
+		# Obtain estimated covariance matrix
+		Shat <- solve(Phat)
+
+
+		print("Visualizing covariance fit")
+		# plot 1: QQ-plot of covariances
+		if (fileType == "pdf"){pdf(paste("QQplot_covariances_", nameExt, ".pdf"))}
+		if (fileType == "eps"){setEPS(); postscript(paste("QQplot_covariances_", nameExt, ".eps"))}
+		if (diag){cObs <- as.numeric(S[upper.tri(S, diag = TRUE)]); cFit <- as.numeric(Shat[upper.tri(Shat, diag = TRUE)])}
+		if (!diag){cObs <- as.numeric(S[upper.tri(S)]); cFit <- as.numeric(Shat[upper.tri(Shat)])}      
+		op <- par(pty = "s") 
+		qqplot(x = cObs, y = cFit, pch = 20, xlab = "sample covariances", ylab = "fits", main = "QQ-plot, covariances")
+		lines(seq(min(cFit, cObs), max(cFit, cObs), length.out = 100), seq(min(cFit, cObs), max(cFit, cObs), length.out = 100), col = "grey", lty = 2)
+		par(op); dev.off()
+
+		# plot 2: Comparison of covariances by heatmap
+		if (fileType == "pdf"){pdf(paste("heatmap_covariances_", nameExt, ".pdf"))}
+		if (fileType == "eps"){setEPS(); postscript(paste("heatmap_covariances_", nameExt, ".eps"))}
+		op  <- par(pty = "s")  
+		slh <- S
+		slh[lower.tri(slh)] <- Shat[lower.tri(Shat)]
+		gplot <- edgeHeat(slh, diag = diag, legend = FALSE, main = "Covariances")
+		print(gplot); par(op); dev.off()   
+
+
+		print("Visualizing correlation fit")
+    		# plot 3: QQ-plot of correlations
+		if (fileType == "pdf"){pdf(paste("QQplot_correlations_", nameExt, ".pdf"))}
+		if (fileType == "eps"){setEPS(); postscript(paste("QQplot_correlations_", nameExt, ".eps"))}
+		if (diag){cObs <- as.numeric(cov2cor(S)[upper.tri(S, diag = TRUE)]); cFit <- as.numeric(cov2cor(Shat)[upper.tri(Shat, diag = TRUE)])} 
+		if (!diag){cObs <- as.numeric(cov2cor(S)[upper.tri(S)]); cFit <- as.numeric(cov2cor(Shat)[upper.tri(Shat)])}
+		op <- par(pty = "s") 
+		qqplot(x = cObs, y = cFit, pch = 20, xlab = "sample correlations", ylab = "fits", main = "QQ-plot, correlations")
+		lines(seq(min(cFit, cObs), max(cFit, cObs), length.out = 100), seq(min(cFit, cObs), max(cFit, cObs), length.out = 100), col = "grey", lty = 2)
+		par(op); dev.off()
+
+		# plot 4: Comparison of correlations by heatmap
+		if (fileType == "pdf"){pdf(paste("heatmap_correlations_", nameExt, ".pdf"))}
+		if (fileType == "eps"){setEPS(); postscript(paste("heatmap_correlations_", nameExt, ".eps"))}
+		op  <- par(pty = "s")  
+		slh <- cov2cor(S)
+		slh[lower.tri(slh)] <- cov2cor(Shat)[lower.tri(Shat)]
+		gplot <- edgeHeat(slh, diag = diag, legend = FALSE, main = "Correlations")
+		print(gplot); par(op); dev.off()   
+
+
+		print("Visualizing partial correlation fit")
+    		# If sample covariance matrix non-singular, also evaluate partial correlation fit
+		if (evaluateS(S, verbose = FALSE)$posEigen){
+
+			# plot 5: QQ-plot of partial correlations
+			if (fileType == "pdf"){pdf(paste("QQplot_partCorrelations_", nameExt, ".pdf"))}
+			if (fileType == "eps"){setEPS(); postscript(paste("QQplot_partCorrelations_", nameExt, ".eps"))}
+			if (diag){cObs <- as.numeric(pcor(solve(S))[upper.tri(S)], diag = TRUE); cFit <- as.numeric(pcor(Phat)[upper.tri(Phat, diag = TRUE)])}
+			if (!diag){cObs <- as.numeric(pcor(solve(S))[upper.tri(S)]); cFit <- as.numeric(pcor(Phat)[upper.tri(Phat)])}
+			op <- par(pty = "s")  
+			qqplot(x = cObs, y = cFit, pch = 20, xlab = "sample partial correlations", ylab = "fits", main = "QQ-plot, partial correlations")
+			lines(seq(min(cFit, cObs), max(cFit, cObs), length.out = 100), seq(min(cFit, cObs), max(cFit, cObs), length.out = 100), col = "grey", lty = 2)
+			par(op); dev.off()
+
+			# plot 6: Comparison of partial correlations by heatmap
+			if (fileType == "pdf"){pdf(paste("heatmap_partCorrelations_", nameExt, ".pdf"))}
+			if (fileType == "eps"){setEPS(); postscript(paste("heatmap_partCorrelations_", nameExt, ".eps"))}
+			op  <- par(pty = "s")  
+			slh <- pcor(solve(S))
+			slh[lower.tri(slh)] <- pcor(Phat)[lower.tri(Phat)]
+			gplot <- edgeHeat(slh, diag = diag, legend = FALSE, main = "Partial correlations")
+			print(gplot); par(op); dev.off()
+
+		} else {
+			print("sample covariance matrix is singular: partial correlation fit not visualized")
+		}
+	}
+}
+
+
+
 
 ##---------------------------------------------------------------------------------------------------------
 ## 
 ## Functions for Visualization
 ##
 ##---------------------------------------------------------------------------------------------------------
+
+ridgePathS <- function (S, lambdaMin, lambdaMax, step, type = "Alt", target = default.target(S), 
+                        plotType = "pcor", diag = FALSE, verticle = FALSE, value, verbose = TRUE){
+	#####################################################################################################
+	# - Function that visualizes the regularization path
+	# - Regularization path may be visualized for (partial) correlations, covariances and precision elements
+	# - S         > sample covariance/correlation matrix
+	# - lambdaMin > minimum value penalty parameter (dependent on 'type')
+	# - lambdaMax > maximum value penalty parameter (dependent on 'type')
+	# - step      > determines the coarseness in searching the grid [lambdaMin, lambdaMax]
+	# - type      > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
+	# - target    > target (precision terms) for Type I estimators, default = default.target(S)
+	# - plotType  > specificies the elements for which the regularization path is to be visualized.
+	#               Must be one of {"pcor", "cor", "cov", "prec"}, default = "pcor"
+	# - diag      > logical indicating if the diagonal elements should be retained for plotting, 
+	#               default = FALSE
+	# - verticle  > optional argument for visualization verticle line in graph output, default = FALSE
+	#               Can be used to indicate the value of, e.g., the optimal penalty as indicated by some
+	#               routine. Can be used to assess the whereabouts of this optimal penalty along the 
+	#               regularization path
+	# - value     > indicates constant on which to base verticle line when verticle = TRUE
+	# - verbose   > logical indicating if intermediate output should be printed on screen
+	#####################################################################################################
+
+	# Dependencies
+	# require("base")
+
+	if (class(verbose) != "logical"){
+		stop("Input (verbose) is of wrong class")
+	}
+	if (verbose){
+		cat("Perform input checks...", "\n")
+	}
+	if (!is.matrix(S)){
+		stop("input (S) should be a matrix")
+	}
+	if (!isSymmetric(S)){
+		stop("Input (S) should be a covariance matrix")
+	}
+	else if (class(lambdaMin) != "numeric"){
+		stop("Input (lambdaMin) is of wrong class")
+	}
+	else if (length(lambdaMin) != 1){
+		stop("Input (lambdaMin) must be a scalar")
+	}
+	else if (lambdaMin <= 0){
+		stop("Input (lambdaMin) must be positive")
+	}
+	else if (class(lambdaMax) != "numeric"){
+		stop("Input (lambdaMax) is of wrong class")
+	}
+	else if (length(lambdaMax) != 1){
+		stop("Input (lambdaMax) must be a scalar")
+	}
+	else if (lambdaMax <= lambdaMin){
+		stop("lambdaMax must be larger than lambdaMin")
+	}
+	else if (class(step) != "numeric") {
+		stop("Input (step) is of wrong class")
+	}
+	else if (!.is.int(step)){
+		stop("Input (step) should be integer")
+	}
+	else if (step <= 0){
+		stop("Input (step) should be a positive integer")
+	}
+	else if (class(plotType) != "character") {
+		stop("Input (plotType) is of wrong class")
+	}
+	else if (!(plotType %in% c("pcor", "cor", "cov", "prec"))){
+		stop("Input (plotType) should be one of {'pcor', 'cor', 'cov', 'prec'}")
+	}
+	else if (length(nchar(plotType)) != 1){
+		stop("Input (plotType) should be exactly one of {'pcor', 'cor', 'cov', 'prec'}")
+	}
+	if (class(diag) != "logical") {
+		stop("Input (diag) is of wrong class")
+	}
+	else if (class(verticle) != "logical"){
+		stop("Input (verticle) is of wrong class")
+	}
+	else {
+		# Set preliminaries
+		lambdas  <- seq(lambdaMin, lambdaMax, len = step)
+		YforPlot <- numeric()
+
+		# Calculate paths
+		if (verbose){cat("Calculating...", "\n")}
+        	for (k in 1:length(lambdas)){
+            	P <- ridgeS(S, lambdas[k], type = type, target = target)
+	    		if (plotType=="pcor"){YforPlot <- cbind(YforPlot, pcor(P)[upper.tri(P)])}
+	    		if (plotType=="prec"){YforPlot <- cbind(YforPlot, P[upper.tri(P, diag = diag)])}
+	    		if (plotType=="cov"){YforPlot <- cbind(YforPlot, solve(P)[upper.tri(P, diag = diag)])}
+	    		if (plotType=="cor"){YforPlot <- cbind(YforPlot, cov2cor(solve(P))[upper.tri(P)])}
+            	if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
+        	}
+
+		# Visualize
+        	if (plotType=="cor"){ylabel <- "penalized correlation"}
+        	if (plotType=="cov"){ylabel <- "penalized covariances"}
+        	if (plotType=="pcor"){ylabel <- "penalized partial correlation"}
+        	if (plotType=="prec"){ylabel <- "penalized precision elements"}
+		if (type == "Alt"){Main = "Alternative ridge estimator"}
+		if (type == "ArchI"){Main = "Archetypal I ridge estimator"}
+		if (type == "ArchII"){Main = "Archetypal II ridge estimator"}
+
+        	plot(YforPlot[1,] ~ log(lambdas), axes = FALSE, xlab = "ln(penalty value)", ylab = ylabel, main = Main, col = "white", ylim = c(min(YforPlot), max(YforPlot)))
+        	for (k in 1:nrow(YforPlot)){lines(YforPlot[k,] ~ log(lambdas), col = k, lty = k)}
+		axis(2, col = "black", lwd = 1)
+		axis(1, col = "black", lwd = 1)
+		if (verticle){
+			if (missing(value)){
+				stop("Need to specify input (value)")
+			} else if (class(value) != "numeric"){
+				stop("Input (value) is of wrong class")
+			} else if (length(value) != 1){
+				stop("Input (value) must be a scalar")
+			} else if (value <= 0){
+				stop("Input (value) must be positive")
+			} else {
+				abline(v = log(value), col = "red")
+			}
+		}
+	}
+}
+
+
 
 if(getRversion() >= "2.15.1") utils::globalVariables(c("X1", "X2", "value"))
 
@@ -1190,6 +1817,79 @@ Ugraph <- function(M, type = c("plain", "fancy", "weighted"), lay = layout.circl
 
 ##---------------------------------------------------------------------------------------------------------
 ## 
+## Function for Network Statistics
+##
+##---------------------------------------------------------------------------------------------------------
+
+GGMnetworkStats <- function(sparseP){
+	############################################################################################
+	# - Function that calculates various network statistics from a sparse matrix
+	# - Input matrix is assumed to be a sparse precision of partial correlation matrix
+	# - The sparse precision matrix is taken to represent a conditional independence graph
+	# - sparseP > sparse precision/partial correlation matrix
+	# 
+	# - NOTES (network statistics produced):
+	# - Node degree
+	# - Betweenness centrality
+	# - Closeness centrality
+	# - Number of negative edges for each node
+	# - Number of positive edges for each node
+	# - Mutual information of each variate with all other variates
+	# - Variance of each variate (based on inverse sparsified precision matrix)
+	# - Partial variance of each variate (= 1 when input matrix is partial correlation matrix)
+	# - Future versions of this function may include additional statistics
+	#
+	# - REFERENCE:
+	# - Newman, M.E.J. (2010), "Networks: an introduction", Oxford University Press
+	#############################################################################################
+
+	# Dependencies
+	# require("base")
+	# require("igraph")
+
+	if (!is.matrix(sparseP)){
+		stop("Input (sparseP) should be a matrix")
+	}
+	else if (!isSymmetric(sparseP)){
+		stop("Input (sparseP) should be a symmetric matrix")
+	}
+	else if (!evaluateS(sparseP, verbose = FALSE)$posEigen){
+		stop("Input (sparseP) is expected to be positive definite")
+	}
+	else{
+		# Some warnings
+		if (all(sparseP != 0)){warning("Given input (sparseP) implies a saturated conditional independence graph")}
+		if (all(sparseP[!diag(nrow(sparseP))] == 0)){warning("Given input (sparseP) implies an empty conditional independence graph")}
+
+      	# Obtain corresponding sample covariance matrix
+    		pvars <- 1/diag(sparseP)
+    		S     <- solve(sparseP)
+
+    		# Calculate nodes' mutual information
+    		MI    <- unlist(lapply(1:nrow(S), function(j, S){ log(det(S[-j,-j])) - log(det(S[-j,-j] - S[-j,j,drop=FALSE] %*% S[j,-j,drop=FALSE] / S[j,j])) }, S = S))
+		Nodes <- colnames(sparseP)
+		MI    <- data.frame(Nodes, MI)
+    	
+		# Signs of edges
+		diag(sparseP) <- 0 
+		nPos <- apply(sign(sparseP), 2, function(Z){ sum(Z == 1) }) 
+		nNeg <- apply(sign(sparseP), 2, function(Z){ sum(Z == -1) })
+
+    		# Adjacency to graphical object
+    		AM  <- adjacentMat(sparseP)
+    		CIG <- graph.adjacency(AM, mode = "undirected")
+
+		# Return
+    		return(list(degree = degree(CIG), betweenness = betweenness(CIG), closeness = closeness(CIG),  
+		 	 nNeg = nNeg, nPos = nPos, mutualInfo = MI, variance = diag(S), partialVariance = pvars))
+	}
+}
+
+
+
+
+##---------------------------------------------------------------------------------------------------------
+## 
 ## Miscellaneous
 ##
 ##---------------------------------------------------------------------------------------------------------
@@ -1227,6 +1927,43 @@ Ugraph <- function(M, type = c("plain", "fancy", "weighted"), lay = layout.circl
 #- Corrected small error in 'optPenaltyCV' function
 #- Both 'optPenaltyCV' and 'optPenalty.aLOOCV' now utilize 'covML' instead of 'cov'
 #- Default output option in 'optPenaltyCV' (as in 'optPenalty.aLOOCV') is now "light"
+
+
+## Updates from version 1.2 to 1.3
+#- Inclusion hidden function '.ridgeSi' for usage in 'conditionNumberPlot' function
+#- Inclusion hidden function '.eigShrink' for usage in (a.o.) 'ridgeS' function
+#- Inclusion function calculating various network statistics from a sparse matrix: 'GGMnetworkStats'
+#- Inclusion function for visual inspection fit of regularized precision matrix to sample covariance matrix: 'evaluateSfit'
+#- Inclusion function for visualization of regularization paths: 'ridgePathS'
+#- Inclusion function for default target matrix generation: 'default.target'
+#- New features updated 'evaluateS' function:
+	# The printed output of the 'evaluateS' function is now aligned 
+	# Calculation spectral condition number has been improved
+#- 'conditionNumber' function now called 'conditionNumberPlot'. Updated function has new features:
+	# Main plot can now be obtained with either the spectral (l2) or the (approximation to) l1 condition number
+	# Main plot can now be amended with plot of the relative distance to the set of singular matrices
+	# The title of the main plot can now be suppressed
+	# One can now obtain numeric output from the function: lambdas and condition numbers
+#- New features updated 'sparsify' function:
+	# Changed 'type = c("threshold", "localFDR")' to 'threshold = c("absValue", "localFDR")' (clarifying nomenclature)
+	# Changed 'threshold' to 'absValueCut' (clarifying nomenclature)
+	# Will now output both sparsified partial correlation/standardized precision matrix and the sparsified precison matrix >>
+	# when input consists of the unstandardized precision matrix
+#- New features updated 'ridgeS' function:
+	# Contains an improved evaluation of the target matrix possibly being a null matrix
+	# Now evaluates if a rotation equivariant alternative estimator ensues for a given target matrix
+	# When rotation equivariant alternative estimator ensues, computation is sped up considerably by circumventing the matrix square root
+#- 'optPenaltyCV' function now called 'optPenalty.LOOCV', for sake of (naming) consistency. Updated function has new features:
+	# 'targetScale' option has been removed
+	# Replaced 'log' in optional graph by 'ln'
+	# Visual layout of optional graph now more in line with recommendations by Tufte
+#- New features updated 'optPenalty.aLOOCV' function:
+	# Replaced 'log' in optional graph by 'ln'
+	# Visual layout of optional graph now more in line with recommendations by Tufte
+#- Computation optimal penalty in 'conditionNumberPlot', 'optPenalty.aLOOCV' and 'optPenalty.LOOCV' functions sped up considerably:
+	# For rotation equivariant alternative estimator
+	# By usage new ridgeS and avoidance of redundant eigendecompositions
+#- Default target in 'ridgeS', 'conditionNumberPlot', 'optPenalty.aLOOCV' and 'optPenalty.LOOCV' now "DAIE" option in 'default.target'
 
 
 

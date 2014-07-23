@@ -1,5 +1,5 @@
-\name{optPenaltyCV}
-\alias{optPenaltyCV}
+\name{optPenalty.LOOCV}
+\alias{optPenalty.LOOCV}
 \title{
 Select optimal penalty parameter by leave-one-out cross-validation
 }
@@ -8,8 +8,8 @@ Function that selects the optimal penalty parameter for the \code{\link{ridgeS}}
 Its output includes (a.o.) the precision matrix under the optimal value of the penalty parameter.
 }
 \usage{
-optPenaltyCV(Y, lambdaMin, lambdaMax, step, type = "Alt", target = 
-diag(1/diag(covML(Y))), targetScale = TRUE, output = "light", graph = TRUE, 
+optPenalty.LOOCV(Y, lambdaMin, lambdaMax, step, type = "Alt", 
+target = default.target(covML(Y)), output = "light", graph = TRUE, 
 verbose = TRUE)
 }
 \arguments{
@@ -31,9 +31,6 @@ A \code{character} indicating the type of ridge estimator to be used. Must be on
   \item{target}{
 A target \code{matrix} (in precision terms) for Type I ridge estimators.
 }
-  \item{targetScale}{
-A \code{logical} indicating if the default target is to be made dependent on the leave-one-out sample.
-}
   \item{output}{
 A \code{character} indicating if the output is either heavy or light. Must be one of: "all", "light".
 }
@@ -41,7 +38,7 @@ A \code{character} indicating if the output is either heavy or light. Must be on
 A \code{logical} indicating if the grid search for the optimal penalty parameter should be visualized.
 }
   \item{verbose}{
-A \code{logical} indicating if intermediate output should be printed on screen.
+A \code{logical} indicating if information on progress should be printed on screen.
 }
 }
 \details{
@@ -49,10 +46,8 @@ The function calculates a cross-validated negative log-likelihood score (using a
 value of the penalty parameter contained in the search grid by way of leave-one-out cross-validation. The value of the penalty parameter 
 that achieves the lowest cross-validated negative log-likelihood score is deemed optimal. The penalty parameter must be positive such that \code{lambdaMin} must 
 be a positive scalar. The maximum allowable value of \code{lambdaMax} depends on the type of ridge estimator employed. For details on the type of 
-ridge estimator one may use (one of: "Alt", "ArchI", "ArchII") see \code{\link{ridgeS}}. In case one employs target shrinkage (Type I ridge
-estimation: see \code{\link{ridgeS}}) and one employs the default target (diagonal matrix with inverse sample variances as the entries), one 
-may choose to let the default target be dependent on the complete data sample or to let the target be dependent on the leave-one-out cross-validation
-sample (meaning \code{targetScale} must be \code{TRUE}). The ouput consists of an object of class list (see below). When \code{output = "light"} (default) only 
+ridge estimator one may use (one of: "Alt", "ArchI", "ArchII") see \code{\link{ridgeS}}. 
+The ouput consists of an object of class list (see below). When \code{output = "light"} (default) only 
 the \code{optLambda} and \code{optPrec} elements of the list are given.
 }
 \value{
@@ -66,7 +61,7 @@ An object of class list:
 Carel F.W. Peeters <cf.peeters@vumc.nl>, Wessel N. van Wieringen
 }
 \seealso{
-\code{\link{ridgeS}}, \code{\link{optPenalty.aLOOCV}}
+\code{\link{ridgeS}}, \code{\link{optPenalty.aLOOCV}}, \code{\link{default.target}}
 }
 \examples{
 ## Obtain some (high-dimensional) data
@@ -77,7 +72,7 @@ X = matrix(rnorm(n*p), nrow = n, ncol = p)
 colnames(X)[1:25] = letters[1:25]
 
 ## Obtain regularized precision under optimal penalty
-OPT  <- optPenaltyCV(X, lambdaMin = 12, lambdaMax = 20, step = 10); OPT	
+OPT  <- optPenalty.LOOCV(X, lambdaMin = .5, lambdaMax = 30, step = 100); OPT	
 OPT$optLambda	# Optimal penalty
 OPT$optPrec	# Regularized precision under optimal penalty
 }
