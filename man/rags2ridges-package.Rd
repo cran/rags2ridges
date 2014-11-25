@@ -26,12 +26,18 @@ Function overview:
 	\item \code{\link{conditionNumberPlot}}
 	\item \code{\link{optPenalty.aLOOCV}}
 	\item \code{\link{optPenalty.LOOCV}}
+	\item \code{\link{optPenalty.LOOCVauto}}
 	}
 \item Functions for loss/entropy/fit evaluation
 	\itemize{
 	\item \code{\link{evaluateSfit}}
 	\item \code{\link{KLdiv}}
 	\item \code{\link{loss}}
+	}
+\item Functions for block-independence testing
+	\itemize{
+	\item \code{\link{GGMblockNullPenalty}}
+	\item \code{\link{GGMblockTest}}
 	}
 \item Function for support determination
 	\itemize{
@@ -43,9 +49,14 @@ Function overview:
 	\item \code{\link{ridgePathS}}
 	\item \code{\link{Ugraph}}
 	}
-\item Function for network statistics
+\item Functions for topology statistics
 	\itemize{
 	\item \code{\link{GGMnetworkStats}}
+	\item \code{\link{GGMpathStats}}
+	}
+\item Wrapper function
+	\itemize{
+	\item \code{\link{fullMontyS}}
 	}
 \item Support functions
 	\itemize{

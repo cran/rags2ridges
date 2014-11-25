@@ -1,15 +1,17 @@
-import("GeneNet")
+import("igraph")
+
+importFrom("stats", cov2cor, optim)
 
 importFrom("expm", sqrtm)
 
-importFrom("ggplot2", ggplot, aes, geom_tile, scale_fill_gradient2, theme, element_blank, element_text, xlab, ylab, ylim, ggtitle)
-
-importFrom("igraph", graph.adjacency, delete.vertices, E, degree, betweenness, closeness)
-
-import("reshape")
-
 importFrom("Hmisc", minor.tick)
 
-importFrom("stats", cov2cor)
+importFrom("snowfall", sfInit, sfLibrary, sfSapply, sfStop)
+
+importFrom("fdrtool", fdrtool)
+
+importFrom("ggplot2", ggplot, aes, geom_tile, scale_fill_gradient2, theme, element_blank, element_text, xlab, ylab, ylim, ggtitle)
+
+import("reshape")
 
 exportPattern("^[[:alpha:]]+")

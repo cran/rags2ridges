@@ -50,6 +50,7 @@ Wessel N. van Wieringen, Carel F.W. Peeters <cf.peeters@vumc.nl>
 \code{\link{ridgeS}}, \code{\link{covML}}
 }
 \examples{
+\dontrun{
 ## Obtain some (high-dimensional) data
 p = 25
 n = 10
@@ -62,5 +63,5 @@ Cx <- covML(X)
 P <- ridgeS(Cx, lambda = 10, type = 'Alt')
 
 ## Evaluate visually fit of regularized precision matrix vis-a-vis sample covariance
-evaluateSfit(P, Cx, diag = FALSE, fileType = "pdf", nameExt = "test")
+evaluateSfit(P, Cx, diag = FALSE, fileType = "pdf", nameExt = "test")}
 }

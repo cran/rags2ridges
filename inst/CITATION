@@ -23,7 +23,7 @@ citEntry(entry="Article",
     pages =  "",
     year = 2014,
     textVersion =
-      paste("Van Wieringen, W.N. and Peeters, C.F.W. (2014). ",
+      paste("van Wieringen, W.N. and Peeters, C.F.W. (2014). ",
 		"Ridge Estimation of Inverse Covariance Matrices from High-Dimensional Data. ", 
         	"arXiv:1403.0904 [stat.ME].", sep = "")
 )

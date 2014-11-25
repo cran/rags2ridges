@@ -16,7 +16,7 @@ default.target(S, type = "DAIE", fraction = 1e-04, const)
 Sample covariance \code{matrix}.
 }
   \item{type}{
-A \code{character} determining the type of default target. Must be one of: "DAIE", "DUPV", "DAPV", "DCPV", "DEPV", "Null".
+A \code{character} determining the type of default target. Must be one of: "DAIE", "DIAES", "DUPV", "DAPV", "DCPV", "DEPV", "Null".
 }
   \item{fraction}{
 A \code{numeric} indicating the fraction of the largest eigenvalue below which an eigenvalue is considered zero.
@@ -29,14 +29,15 @@ A \code{numeric} constant representing the partial variance.
 The function can generate the following default target matrices:
 \itemize{
 \item \code{DAIE}: Diagonal matrix with average of inverse nonzero eigenvalues of S as entries;
+\item \code{DIAES}: Diagonal matrix with inverse of average of eigenvalues of S as entries;
 \item \code{DUPV}: Diagonal matrix with unit partial variance as entries (identity matrix);
 \item \code{DAPV}: Diagonal matrix with average of inverse variances of \code{S} as entries;
-\item \code{DCPV}: Diagonal matrix with constant partial variance as entries. Allows one to use other constant than DAIE, DUPV, DAPV, and in a sense Null;
+\item \code{DCPV}: Diagonal matrix with constant partial variance as entries. Allows one to use other constant than DAIE, DIAES, DUPV, DAPV, and in a sense Null;
 \item \code{DEPV}: Diagonal matrix with the inverse variances of \code{S} as entries;
 \item \code{Null}: Null matrix.
 }
 The targets \code{DUPV}, \code{DCPV}, and \code{Null} are not data-driven in the sense that the input matrix \code{S} only provides information on the size of the desired target.  
-The targets \code{DAIE}, \code{DAPV}, and \code{DEPV} are data-driven in the sense that the input matrix \code{S} provides the information for the diagonal entries. 
+The targets \code{DAIE}, \code{DIAES}, \code{DAPV}, and \code{DEPV} are data-driven in the sense that the input matrix \code{S} provides the information for the diagonal entries. 
 The argument \code{fraction} is only used when \code{type = "DAIE"}. The argument \code{const} is only used when \code{type = "DCPV"}. 
 All types except \code{DEPV} and \code{Null} lead to rotation equivariant alternative and archetypal Type I ridge estimators.
 The target \code{Null} also leads to a rotation equivariant alternative Type II ridge estimator (see \code{\link{ridgeS}}).

@@ -1,5 +1,6 @@
-###########################################################################################################
-###########################################################################################################
+######################################################################################################################
+######################################################################################################################
+######################################################################################################################
 ## 
 ## Name:		rags2ridges
 ## Authors:		Carel F.W. Peeters & Wessel N. van Wieringen
@@ -9,21 +10,32 @@
 ##			Amsterdam, the Netherlands
 ## Email:		cf.peeters@vumc.nl
 ## 
-## Version:		1.3
-## Last Update:	21/07/2014
+## Version:		1.4
+## Last Update:	25/11/2014
 ## Description:	Ridge estimation, with supporting functions, for high-dimensional precision matrices
 ##
 ## Publications:	[1] Wessel N. van Wieringen & Carel F.W. Peeters (2014)
-##			"Ridge Estimation of Inverse Covariance Matrices for High-Dimensional Data"
+##			"Ridge Estimation of Inverse Covariance Matrices from High-Dimensional Data"
 ##			arXiv:1403.0904 [stat.ME]. 
 ## 			[2] Carel F.W. Peeters & Wessel N. van Wieringen (in preparation)
 ##			"The Spectral Condition Number Plot for Regularization Parameter Selection"
 ##
-###########################################################################################################
-###########################################################################################################
+######################################################################################################################
+######################################################################################################################
+######################################################################################################################
 
 
 
+
+######################################################################################################################
+######################################################################################################################
+##--------------------------------------------------------------------------------------------------------------------
+## 
+## Section 0: Support Functions
+##
+##--------------------------------------------------------------------------------------------------------------------
+######################################################################################################################
+######################################################################################################################
 
 ##---------------------------------------------------------------------------------------------------------
 ## 
@@ -164,6 +176,141 @@
 		C_ArchII <- S + lambda * diag(nrow(S))
 		return(C_ArchII)
 	}
+}
+
+
+
+.pathContribution <- function(sparseP, path, detSparseP){
+	#####################################################################################################
+	# - Function calculating the contribution of a path to the covariance between begin and end node
+	# - sparseP    > sparse precision/partial correlation matrix
+	# - path       > path between two nodes (start and end node)
+	# - detSparseP > determinant of 'sparseP'
+	#####################################################################################################
+
+	if (length(path) < nrow(sparseP)){
+		return((-1)^(1+length(path)) * prod(sparseP[cbind(path[-1], path[-length(path)])]) * det(sparseP[-path, -path]) / detSparseP)
+	}
+	if (length(path) == nrow(sparseP)){
+		return((-1)^(1+length(path)) * prod(sparseP[cbind(path[-1], path[-length(path)])]) / detSparseP)
+	}
+}
+
+
+
+.path2string <- function(path){
+	#####################################################################################################
+	# - Function converting a numeric or character vector into a single string
+	# - path > path between two nodes (start and end node)
+	#####################################################################################################
+
+	pName <- sprintf("%s--%s", path[1], path[2])
+	if (length(path) > 2){
+		for (w in 3:(length(path))){ pName <- sprintf("%s--%s", pName, path[w]) }
+	}
+	return(pName)
+}
+
+
+
+.pathAndStats <- function(Gt, node1t, node2t, nei1t, nei2t, P0t, detP0t, pathNames){
+	#####################################################################################################
+	# - Function determining shortest paths (and their contribution) between node 1 and node 2
+	# - It does so via the neighborhoods 1 and 2
+	# - Gt        > graphical object
+	# - node1t    > start node of the path
+	# - node2t    > end node of the path
+	# - nei1t     > neighborhood around the start node
+	# - nei2t     > neighborhood around the end node
+	# - p0t       > sparse precision/partial correlation matrix
+	# - detP0t    > determinant of 'p0t'
+	# - pathNames > named path represented as string
+	#####################################################################################################
+
+	pathsTemp <- list()
+	pathStatsTemp <- numeric()
+	for (v1 in 1:length(nei1t)){
+		for (v2 in 1:length(nei2t)){
+			slhNo1Ne1 <- get.all.shortest.paths(Gt, node1t, nei1t[v1])$res
+			slhNe1Ne2 <- get.all.shortest.paths(Gt, nei1t[v1], nei2t[v2])$res
+			slhNe2No2 <- get.all.shortest.paths(Gt, nei2t[v2], node2t)$res
+			for (uNo1Ne1 in 1:length(slhNo1Ne1)){
+				for (uNe1Ne2 in 1:length(slhNe1Ne2)){			
+					for (uNe2No2 in 1:length(slhNe2No2)){
+						fullPath <- c(slhNo1Ne1[[uNo1Ne1]], slhNe1Ne2[[uNe1Ne2]][-1], slhNe2No2[[uNe2No2]][-1])
+						if (length(unique(fullPath)) == (length(fullPath))){
+							pName <- .path2string(fullPath)				
+							if (!(pName %in% c(pathNames, rownames(pathStatsTemp)))){
+								pathsTemp[[length(pathsTemp)+1]] <- fullPath 
+								pathStatsTemp <- rbind(pathStatsTemp, c(length(fullPath)-1, .pathContribution(P0t, fullPath, detP0t)))
+								rownames(pathStatsTemp)[nrow(pathStatsTemp)] <- pName
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return(list(paths=pathsTemp, pathStats=pathStatsTemp))
+}
+
+
+
+.cvl <- function(lambda, Y,  target = default.target(covML(Y)), type = "Alt"){
+	#####################################################################################################
+	# - Function that calculates a cross-validated negative log-likelihood score for single penalty value
+	# - lambda > value penalty parameter
+	# - Y      > (raw) Data matrix, variables in columns
+	# - target > target (precision terms) for Type I estimators, default = default.target(covML(Y))
+	# - type   > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
+	#####################################################################################################
+
+	slh <- numeric()
+	for (i in 1:nrow(Y)){
+		S   <- covML(Y[-i, ])
+		slh <- c(slh, .LL(t(Y[i, , drop = FALSE]) %*% Y[i, , drop = FALSE], ridgeS(S, lambda, target = target, type = type)))
+	}
+	return(mean(slh))        
+}
+
+
+
+.lambdaNullDist <- function(i, Y, id, lambdaMin, lambdaMax, lambdaInit, target, type){
+	#####################################################################################################
+	# - Function that determines the optimal value of the penalty parameter for a single permutation
+	# - Optimal penalty determined using the 'optPenalty.LOOCVauto' function
+	# - i          > number of permutations; passed by nPerm in 'GGMblockNullPenalty'
+	# - Y          > (raw) Data matrix, variables in columns
+	# - id         > indicator variable for the two blocks of the precision matrix
+	# - lambdaMin  > minimum value penalty parameter (dependent on 'type')
+	# - lambdaMax  > maximum value penalty parameter (dependent on 'type')
+	# - lambdaInit > initial value for lambda for starting optimization
+	# - target     > target (precision terms) for Type I estimators
+	# - type       > must be one of {"Alt", "ArchI", "ArchII"}
+	#####################################################################################################  
+
+	reshuffle    <- sample(1:nrow(Y), nrow(Y))
+	Y[, id == 1] <- Y[reshuffle, id == 1]
+	return(optPenalty.LOOCVauto(Y, lambdaMin, lambdaMax, lambdaInit, target = target, type = type)$optLambda)
+}
+
+
+
+.blockTestStat <- function(i, Y, id, lambda, target, type){
+	#####################################################################################################
+	# - Function that calculates logratio statistic for block independence
+	# - i      > number of permutations; passed by nPerm in 'GGMblockTest'
+	# - Y      > (raw) Data matrix, variables in columns
+	# - id     > indicator variable for the two blocks of the precision matrix
+	# - lambda > value penalty parameter
+	# - target > target (precision terms) for Type I estimators
+	# - type   > must be one of {"Alt", "ArchI", "ArchII"}
+	##################################################################################################### 
+
+	reshuffle    <- sample(1:nrow(Y), nrow(Y))
+	Y[, id == 1] <- Y[reshuffle, id == 1]
+	S            <- solve(ridgeS(covML(Y), lambda = lambda, target = target, type = type))
+	return(log(det(S[id == 0, id == 0])) + log(det(S[id == 1, id == 1])) - log(det(S)))
 }
 
 
@@ -374,6 +521,8 @@ default.target <- function(S, type = "DAIE", fraction = 1e-04, const){
 	# - The van Wieringen-Peeters type I estimator and the archetypal I estimator utilize a p.d. target
 	# - DAIE: diagonal average inverse eigenvalue
 	#   Diagonal matrix with average of inverse nonzero eigenvalues of S as entries 
+	# - DIAES: diagonal inverse average eigenvalue S
+	#   Diagonal matrix with inverse of average of eigenvalues of S as entries 
 	# - DUPV: diagonal unit partial variance
 	#   Diagonal matrix with unit partial variance as entries (identity matrix)
 	# - DAPV: diagonal average partial variance
@@ -382,7 +531,7 @@ default.target <- function(S, type = "DAIE", fraction = 1e-04, const){
 	#   Diagonal matrix with constant partial variance as entries. Allows one to use other constant than
 	#   [DAIE, DUPV, DAPV, and in a sense Null]
 	# - DEPV: diagonal empirical partial variance
-	#   Diagonal matrix with the inverse variances of S as entries
+	#   Diagonal matrix with the inverse of variances of S as entries
 	# - Null: Null matrix
 	#   Matrix with only zero entries
 	# - All but DEPV and Null lead to rotation equivariant alternative and archetype I ridge estimators
@@ -401,8 +550,8 @@ default.target <- function(S, type = "DAIE", fraction = 1e-04, const){
 	else if (class(type) != "character"){
 		stop("Input (type) is of wrong class")
 	}
-	else if (!(type %in% c("DAIE", "DUPV", "DAPV", "DCPV", "DEPV", "Null"))){
-		stop("type should be one of {'DAIE', 'DUPV', 'DAPV', 'DCPV', 'DEPV', 'Null'}")
+	else if (!(type %in% c("DAIE", "DIAES", "DUPV", "DAPV", "DCPV", "DEPV", "Null"))){
+		stop("Input (type) should be one of {'DAIE', 'DIAES', 'DUPV', 'DAPV', 'DCPV', 'DEPV', 'Null'}")
 	}
 	else {
 		# Compute and return a default target matrix
@@ -411,7 +560,7 @@ default.target <- function(S, type = "DAIE", fraction = 1e-04, const){
 			if (class(fraction) != "numeric"){
 				stop("Input (fraction) is of wrong class")
 			} else if (length(fraction) != 1){
-				stop("Length fraction must be one")
+				stop("Length input (fraction) must be one")
 			} else if (fraction < 0 | fraction > 1){
 				stop("Input (fraction) is expected to be in the interval [0,1]")
 			} else {
@@ -419,6 +568,13 @@ default.target <- function(S, type = "DAIE", fraction = 1e-04, const){
 				const  <- mean(1/(Eigs[Eigs >= Eigs[1]*fraction]))
 				target <- const * diag(ncol(S))
 			}
+		}
+
+		# Diagonal matrix with inverse of average of eigenvalues of S as entries 
+		if (type == "DIAES"){
+			Eigs   <- eigen(S, symmetric = TRUE, only.values = TRUE)$values
+			const  <- 1/mean(Eigs)
+			target <- const * diag(ncol(S))
 		}
 
 		# Diagonal matrix with unit partial variance as entries
@@ -437,7 +593,7 @@ default.target <- function(S, type = "DAIE", fraction = 1e-04, const){
 			if (class(const) != "numeric"){
 				stop("Input (const) is of wrong class")
 			} else if (length(const) != 1){
-				stop("Length 'const' must be one")
+				stop("Length input (const) must be one")
 			} else if (const <= 0 | const > .Machine$double.xmax){
 				stop("Input (const) is expected to be in the interval (0, Inf)")
 			} else {
@@ -463,6 +619,18 @@ default.target <- function(S, type = "DAIE", fraction = 1e-04, const){
 
 
 
+
+
+
+######################################################################################################################
+######################################################################################################################
+##--------------------------------------------------------------------------------------------------------------------
+## 
+## Section A: rags2ridges Core
+##
+##--------------------------------------------------------------------------------------------------------------------
+######################################################################################################################
+######################################################################################################################
 
 ##---------------------------------------------------------------------------------------------------------
 ## 
@@ -593,37 +761,37 @@ optPenalty.LOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target
 		cat("Perform input checks...", "\n")
 	}
 	if (!is.matrix(Y)){
-		stop("Y should be a matrix")
+		stop("Input (Y) should be a matrix")
 	} 
 	else if (class(lambdaMin) != "numeric"){
 		stop("Input (lambdaMin) is of wrong class")
 	} 
 	else if (length(lambdaMin) != 1){
-		stop("lambdaMin must be a scalar")
+		stop("Input (lambdaMin) must be a scalar")
 	} 
 	else if (lambdaMin <= 0){
-		stop("lambdaMin must be positive")
+		stop("Input (lambdaMin) must be positive")
 	} 
 	else if (class(lambdaMax) != "numeric"){
 		stop("Input (lambdaMax) is of wrong class")
 	} 
 	else if (length(lambdaMax) != 1){
-		stop("lambdaMax must be a scalar")
+		stop("Input (lambdaMax) must be a scalar")
 	} 
 	else if (lambdaMax <= lambdaMin){
-		stop("lambdaMax must be larger than lambdaMin")
+		stop("Input (lambdaMax) must be larger than lambdaMin")
 	}
 	else if (class(step) != "numeric"){
 		stop("Input (step) is of wrong class")
 	}
 	else if (!.is.int(step)){
-		stop("step should be integer")
+		stop("Input (step) should be integer")
 	}
 	else if (step <= 0){
-		stop("step should be a positive integer")
+		stop("Input (step) should be a positive integer")
 	}
 	else if (!(output %in% c("all", "light"))){
-		stop("output should be one of {'all', 'light'}")
+		stop("Input (output) should be one of {'all', 'light'}")
 	}
 	else if (class(graph) != "logical"){
 		stop("Input (graph) is of wrong class")
@@ -652,11 +820,11 @@ optPenalty.LOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", target
 			if (type == "Alt"){Main = "Alternative ridge estimator"}
 			if (type == "ArchI"){Main = "Archetypal I ridge estimator"}
 			if (type == "ArchII"){Main = "Archetypal II ridge estimator"}
-			plot(log(lambdas), type = "l", log(LLs), axes = FALSE, xlab = "ln(penalty value)", ylab = "ln(cross-validated neg. log-likelihood)", main = Main)
-			axis(2, ylim = c(log(min(LLs)),log(max(LLs))), col = "black", lwd = 1)
+			plot(log(lambdas), type = "l", LLs, axes = FALSE, xlab = "ln(penalty value)", ylab = "LOOCV neg. log-likelihood", main = Main)
+			axis(2, ylim = c(min(LLs),max(LLs)), col = "black", lwd = 1)
 			axis(1, col = "black", lwd = 1)
-			abline(h = log(min(LLs)), v = log(optLambda), col = "red")
-			legend("topright", legend = c(paste("min. LOOCV -LL: ", round(min(LLs),3), sep = ""), 
+			abline(h = min(LLs), v = log(optLambda), col = "red")
+			legend("topright", legend = c(paste("min. LOOCV neg. LL: ", round(min(LLs),3), sep = ""), 
 			paste("Opt. penalty: ", optLambda, sep = "")), cex = .8)
 		}
 
@@ -699,37 +867,37 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", targe
 		cat("Perform input checks...", "\n")
 	}
 	if (!is.matrix(Y)){
-		stop("Y should be a matrix")
+		stop("Input (Y) should be a matrix")
 	} 
 	else if (class(lambdaMin) != "numeric"){
 		stop("Input (lambdaMin) is of wrong class")
 	} 
 	else if (length(lambdaMin) != 1){
-		stop("lambdaMin must be a scalar")
+		stop("Input (lambdaMin) must be a scalar")
 	} 
 	else if (lambdaMin <= 0){
-		stop("lambdaMin must be positive")
+		stop("Input (lambdaMin) must be positive")
 	} 
 	else if (class(lambdaMax) != "numeric"){
 		stop("Input (lambdaMax) is of wrong class")
 	} 
 	else if (length(lambdaMax) != 1){
-		stop("lambdaMax must be a scalar")
+		stop("Input (lambdaMax) must be a scalar")
 	} 
 	else if (lambdaMax <= lambdaMin){
-		stop("lambdaMax must be larger than lambdaMin")
+		stop("Input (lambdaMax) must be larger than lambdaMin")
 	}
 	else if (class(step) != "numeric"){
 		stop("Input (step) is of wrong class")
 	}
 	else if (!.is.int(step)){
-		stop("step should be integer")
+		stop("Input (step) should be integer")
 	}
 	else if (step <= 0){
-		stop("step should be a positive integer")
+		stop("Input (step) should be a positive integer")
 	}
 	else if (!(output %in% c("all", "light"))){
-		stop("output should be one of {'all', 'light'}")
+		stop("Input (output) should be one of {'all', 'light'}")
 	}
 	else if (class(graph) != "logical"){
 		stop("Input (graph) is of wrong class")
@@ -750,9 +918,10 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", targe
 				stop("Covariance matrix based on data input (Y) and target should be of the same dimension")
 			} else {
 				Spectral <- eigen(S, symmetric = TRUE)
+				Vinv     <- solve(Spectral$vectors)
 				for (k in 1:length(lambdas)){
 					Eigshrink <- .eigShrink(Spectral$values, lambdas[k])
-					P         <- solve(Spectral$vectors %*% diag(Eigshrink) %*% t(Spectral$vectors))
+					P         <- t(Vinv) %*% diag(1/Eigshrink) %*% Vinv
 					nLL       <- .5 * .LL(S, P)
 					isum      <- numeric()
 
@@ -771,13 +940,14 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", targe
 			} else if (dim(target)[1] != dim(S)[1]){
 				stop("Covariance matrix based on data input (Y) and target should be of the same dimension")
 			} else if (any(diag(target) <= 0)){
-				stop("target should be p.d.")
+				stop("Input (target) should be p.d.")
 			} else {
 				varPhi   <- unique(diag(target))
 				Spectral <- eigen(S, symmetric = TRUE)
+				Vinv     <- solve(Spectral$vectors)
 				for (k in 1:length(lambdas)){
 					Eigshrink <- .eigShrink(Spectral$values, lambdas[k], const = varPhi)
-					P         <- solve(Spectral$vectors %*% diag(Eigshrink) %*% t(Spectral$vectors))
+					P         <- t(Vinv) %*% diag(1/Eigshrink) %*% Vinv
 					nLL       <- .5 * .LL(S, P)
 					isum      <- numeric()
 
@@ -812,11 +982,11 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", targe
 			if (type == "Alt"){Main = "Alternative ridge estimator"}
 			if (type == "ArchI"){Main = "Archetypal I ridge estimator"}
 			if (type == "ArchII"){Main = "Archetypal II ridge estimator"}
-			plot(log(lambdas), type = "l", log(aLOOCVs), axes = FALSE, xlab = "ln(penalty value)", ylab = "ln(Approximate LOOCV neg. log-likelihood)", main = Main)
-			axis(2, ylim = c(log(min(aLOOCVs)),log(max(aLOOCVs))), col = "black", lwd = 1)
+			plot(log(lambdas), type = "l", aLOOCVs, axes = FALSE, xlab = "ln(penalty value)", ylab = "Approximate LOOCV neg. log-likelihood", main = Main)
+			axis(2, ylim = c(min(aLOOCVs),max(aLOOCVs)), col = "black", lwd = 1)
 			axis(1, col = "black", lwd = 1)
-			abline(h = log(min(aLOOCVs)), v = log(optLambda), col = "red")
-			legend("topright", legend = c(paste("min. approx. LOOCV -LL: ", round(min(aLOOCVs),3), sep = ""), 
+			abline(h = min(aLOOCVs), v = log(optLambda), col = "red")
+			legend("topright", legend = c(paste("min. approx. LOOCV neg. LL: ", round(min(aLOOCVs),3), sep = ""), 
 			paste("Opt. penalty: ", optLambda, sep = "")), cex = .8)
 		}
 
@@ -827,6 +997,71 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt", targe
 		if (output == "light"){
 			return(list(optLambda = optLambda, optPrec = ridgeS(S, optLambda, type = type, target = target)))
 		}
+	}
+}
+
+
+
+optPenalty.LOOCVauto <- function (Y, lambdaMin, lambdaMax, lambdaInit = (lambdaMin+lambdaMax)/2, 
+                                  target = default.target(covML(Y)), type = "Alt"){ 
+	#####################################################################################################
+	# - Function that determines the optimal value of the penalty parameter by application of the Brent
+	#   algorithm to the (leave-one-out) cross-validated log-likelihood
+	# - Y          > (raw) Data matrix, variables in columns
+	# - lambdaMin  > minimum value penalty parameter (dependent on 'type')
+	# - lambdaMax  > maximum value penalty parameter (dependent on 'type')
+	# - lambdaInit > initial value for lambda for starting optimization
+	# - target     > target (precision terms) for Type I estimators, default = default.target(covML(Y))
+	# - type       > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
+	#####################################################################################################
+
+	# Dependencies
+	# require("base")
+	# require("stats")    
+
+	# input checks
+	if (!is.matrix(Y)){
+		stop("Input (Y) if of wrong class")
+	} 
+	else if (sum(is.na(Y)) != 0){
+		stop("Input matrix (Y) should not contain missings")
+	}
+	else if (class(lambdaMin) != "numeric"){
+		stop("Input (lambdaMin) is of wrong class")
+	} 
+	else if (length(lambdaMin) != 1){
+		stop("Input (lambdaMin) must be a scalar")
+	} 
+	else if (lambdaMin <= 0){
+		stop("Input (lambdaMin) must be strictly positive")
+	} 
+	else if (class(lambdaMax) != "numeric"){
+		stop("Input (lambdaMax) is of wrong class")
+	} 
+	else if (length(lambdaMax) != 1){
+		stop("Input (lambdaMax) must be a scalar")
+	} 
+	else if (lambdaMax <= lambdaMin){
+		stop("Input (lambdaMax) must be larger than lambdaMin")
+	}
+	else if (class(lambdaInit) != "numeric"){
+		stop("Input (lambdaInit) is of wrong class")
+	} 
+	else if (length(lambdaInit) != 1){
+		stop("Input (lambdaInit) must be a scalar")
+	} 
+	else if (lambdaInit <= lambdaMin){
+		stop("Input (lambdaInit) must be larger than input (lambdaMin)")
+	} 
+	else if (lambdaMax <= lambdaInit){
+		stop("Input (lambdaInit) must be smaller than input (lambdaMax)")
+	} 
+	else {
+		# determine optimal value of ridge penalty parameter
+		optLambda <- optim(lambdaInit, .cvl, method = "Brent", lower = lambdaMin, upper = lambdaMax, Y = Y, target = target, type = type)$par
+
+		# Return
+		return(list(optLambda = optLambda, optPrec = ridgeS(covML(Y), optLambda, type = type, target = target)))
 	}
 }
 
@@ -1028,22 +1263,294 @@ conditionNumberPlot <- function(S, lambdaMin, lambdaMax, step, type = "Alt", tar
 
 ##---------------------------------------------------------------------------------------------------------
 ## 
+## Functions for Block Independence Testing
+##
+##---------------------------------------------------------------------------------------------------------
+
+if(getRversion() >= "2.15.1") utils::globalVariables("rags2ridges")
+
+GGMblockNullPenalty <- function(Y, id, nPerm = 25, lambdaMin, lambdaMax, lambdaInit = (lambdaMin+lambdaMax)/2, 
+                                target = default.target(covML(Y)), type = "Alt", ncpus = 1){
+	#####################################################################################################
+	# - Function generating the distribution of the penalty parameter 
+	# - It does so under the null hypothesis of block independence
+	# - The optimal value of the penalty parameter is determined under multiple permutations
+	# - Optimal penalty determined using the 'optPenalty.LOOCVauto' function
+	# - Y          > (raw) Data matrix, variables in columns
+	# - id         > indicator variable for the two blocks of the precision matrix
+	# - nPerm      > desired number of permutations
+	# - lambdaMin  > minimum value penalty parameter (dependent on 'type')
+	# - lambdaMax  > maximum value penalty parameter (dependent on 'type')
+	# - lambdaInit > initial value for lambda for starting optimization
+	# - target     > target (precision terms) for Type I estimators, default = default.target(covML(Y))
+	# - type       > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
+	# - ncpus      > desired number of cpus
+	#
+	# Notes:
+	# - Dependency on 'snowfall' when ncpus > 1
+	#####################################################################################################
+
+	# Dependencies
+	# require("base")
+	# require("snowfall")
+
+	if (!is.matrix(Y)){
+		stop("Input (Y) should be a matrix")
+	}
+	else if (sum(is.na(Y)) != 0){
+		stop("Input (Y) should not contain missings")
+	}
+	else if (class(id) != "numeric" & class(id) != "integer"){
+		stop("Input (id) is of wrong class")
+	} 
+	else if (!(all(unique(id) %in% c(0, 1)))){
+		stop("Input (id) has unlawful entries")
+	}
+	else if (length(id) != ncol(Y)){
+		stop("Column dimension input (Y) does not match with length input (id)")
+	}
+	else if (class(nPerm) != "numeric" & class(nPerm) != "integer"){
+		stop("Input (nPerm) is of wrong class")
+	} 
+	else if (!.is.int(nPerm)){
+		stop("Input (nPerm) is expected to be a (numeric) integer")
+	} 
+	else if (nPerm <= 0){
+		stop("Input (nPerm) must be strictly positive")
+	}
+	else if (class(lambdaMin) != "numeric"){
+		stop("Input (lambdaMin) is of wrong class")
+	} 
+	else if (length(lambdaMin) != 1){
+		stop("Input (lambdaMin) must be a scalar")
+	} 
+	else if (lambdaMin <= 0){
+		stop("Input (lambdaMin) must be strictly positive")
+	} 
+	else if (class(lambdaMax) != "numeric"){
+		stop("Input (lambdaMax) is of wrong class")
+	} 
+	else if (length(lambdaMax) != 1){
+		stop("Input (lambdaMax) must be a scalar")
+	} 
+	else if (lambdaMax <= lambdaMin){
+		stop("Input (lambdaMax) must be larger than input (lambdaMin)")
+	}
+	else if (class(lambdaInit) != "numeric"){
+		stop("Input (lambdaInit) is of wrong class")
+	} 
+	else if (length(lambdaInit) != 1){
+		stop("Input (lambdaInit) must be a scalar")
+	} 
+	else if (lambdaInit <= lambdaMin){
+		stop("Input (lambdaInit) must be larger than input (lambdaMin)")
+	} 
+	else if (lambdaMax <= lambdaInit){
+		stop("Input (lambdaInit) must be smaller than input (lambdaMax)")
+	} 
+	else if (class(ncpus) != "numeric" & class(ncpus) != "integer"){
+		stop("Input (ncpus) is of wrong class")
+	} 
+	else if (!.is.int(ncpus)){
+		stop("Input (ncpus) is expected to be a (numeric) integer")
+	} 
+	else if (ncpus <= 0){
+		stop("Input (ncpus) must be strictly positive")
+	}
+	else {
+		# Determine null distribution
+		if (ncpus == 1){
+			lambdaNull <- sapply(1:nPerm, .lambdaNullDist, Y = Y, id = id, lambdaMin = lambdaMin, 
+                                       lambdaMax = lambdaMax, lambdaInit = lambdaInit, target = target, type = type)
+		}
+		if (ncpus > 1){
+			sfInit(parallel = TRUE, cpus = ncpus)
+			sfLibrary(rags2ridges, verbose = FALSE)
+			lambdaNull <- sfSapply(1:nPerm, .lambdaNullDist, Y = Y, id = id, lambdaMin = lambdaMin, 
+                                         lambdaMax = lambdaMax, lambdaInit = lambdaInit, target = target, type = type)
+			sfStop()
+		}
+
+		# Return
+		return(lambdaNull)
+	}
+}
+
+
+
+GGMblockTest <- function (Y, id, nPerm = 1000, lambda, target = default.target(covML(Y)), type = "Alt", 
+                          lowCiThres = 0.1, ncpus = 1, verbose = TRUE){
+	#####################################################################################################
+	# - Function performing a permutation test for block structure in the precision matrix
+	# - The setting is a high-dimensional one
+	# - Y          > (raw) Data matrix, variables in columns
+	# - id         > indicator variable for the two blocks of the precision matrix
+	# - nPerm      > desired number of permutations, default = 1000
+	# - lambda     > the penalty parameter employed in the permutation test
+	# - target     > target (precision terms) for Type I estimators, default = default.target(covML(Y))
+	# - type       > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
+	# - lowCiThres > A value between 0 and 1, determining speed of efficient p-value calculation 
+	# - ncpus      > desired number of cpus
+	# - verbose    > logical indicating if progress/output should be printed on screen
+	#
+	# Notes:
+	# - Dependency on 'snowfall' when ncpus > 1
+	# - When verbose = TRUE, also graphical output is given: a histogram of the null-distribution
+	# - The value for 'lambda' ideally stems from 'GGMblockNullPenalty'
+	# - If the probability of a p-value being below 'lowCiThres' is smaller than 0.001 (meaning: the test 
+	#   is unlikely to become significant), the permutation analysis is terminated and a p-value of 
+	#   unity (1) is reported
+	#####################################################################################################
+
+	# Dependencies
+	# require("base")
+	# require("snowfall")
+	# require("graphics")
+
+	if (!is.matrix(Y)){
+		stop("Input (Y) should be a matrix")
+	}
+	else if (sum(is.na(Y)) != 0){
+		stop("Input (Y) should not contain missings")
+	}
+	else if (class(id) != "numeric" & class(id) != "integer"){
+		stop("Input (id) is of wrong class")
+	} 
+	else if (!(all(unique(id) %in% c(0, 1)))){
+		stop("Input (id) has unlawful entries")
+	}
+	else if (length(id) != ncol(Y)){
+		stop("Column dimension input (Y) does not match with length input (id)")
+	}
+	else if (class(nPerm) != "numeric" & class(nPerm) != "integer"){
+		stop("Input (nPerm) is of wrong class")
+	} 
+	else if (!.is.int(nPerm)){
+		stop("Input (nPerm) is expected to be a (numeric) integer")
+	} 
+	else if (nPerm <= 0){
+		stop("Input (nPerm) must be strictly positive")
+	}
+	else if (class(lambda) != "numeric"){
+		stop("Input (lambda) is of wrong class")
+	} 
+	else if (length(lambda) != 1){
+		stop("Input (lambda) must be a scalar")
+	} 
+	else if (lambda <= 0){
+		stop("Input (lambda) must be strictly positive")
+	} 
+	else if (class(lowCiThres) != "numeric"){
+		stop("Input (lowCiThres) is of wrong class")
+	} 
+	else if (length(lowCiThres) != 1){
+			stop("Input (lowCiThres) must be a scalar")
+	}
+	else if (lowCiThres <= 0 | lowCiThres >= 1){
+		stop("Input (lowCiThres) must be in the interval (0,1)")
+	}
+	else if (class(ncpus) != "numeric" & class(ncpus) != "integer"){
+		stop("Input (ncpus) is of wrong class")
+	} 
+	else if (!.is.int(ncpus)){
+		stop("Input (ncpus) is expected to be a (numeric) integer")
+	} 
+	else if (ncpus <= 0){
+		stop("Input (ncpus) must be strictly positive")
+	}
+	else if (class(verbose) != "logical"){
+		stop("Input (verbose) is of wrong class")
+	} 
+	else {
+		# Observed test statistics
+		S     <- solve(ridgeS(covML(Y), lambda = lambda, target = target, type = type))
+		llObs <- log(det(S[id == 0, id == 0, drop = FALSE])) + log(det(S[id == 1, id == 1, drop = FALSE])) - log(det(S))
+    
+		# Define steps at which the possibility of significance should be evaluated
+		steps <- sort(unique(c(0, 25, 50, 100, 150, 200, seq(from = 250, to = 2750, by = 250), seq(from = 3000, to = 10000, by = 500), 
+                          seq(from = 11000, to = 50000, by = 1000), nPerm)))
+		steps <- steps[steps <= nPerm]
+    
+		# Generate null distribution
+		nullDist <- numeric()
+		if (ceiling(ncpus) > 1){
+			sfInit(parallel = TRUE, cpus = ncpus)
+			sfLibrary(rags2ridges, verbose = FALSE)
+		}
+
+		for (j in 1:(length(steps) - 1)){
+			if (verbose){cat(paste(steps[j], " of ", steps[length(steps)], " permutations done, and counting...", sep = ""), "\n")}
+			if (ncpus == 1){
+				nullDistPart <- sapply(c((steps[j] + 1):steps[j + 1]), .blockTestStat, Y = Y, id = id, lambda = lambda, target = target, type = type)
+			}
+			if (ncpus > 1){
+				nullDistPart <- sfSapply(c((steps[j] + 1):steps[j + 1]), .blockTestStat, Y = Y, id = id, lambda = lambda, target = target, type = type)        
+			}
+			nullDist <- c(nullDist, nullDistPart); rm(nullDistPart); gc()
+			pVal     <- sum(nullDist >= as.numeric(llObs))/steps[j + 1]
+			pBound   <- pVal - sqrt(pVal * (1 - pVal)/steps[j + 1]) * 3.09
+			significanceUnlikely <- (pBound > lowCiThres)
+			if (significanceUnlikely){pVal <- 1; break}
+			if (verbose){cat(paste(steps[j + 1], "of", steps[length(steps)], " permutations done", sep = " "), "\n")}
+		}
+
+		if (ncpus > 1){sfStop()}
+	
+		# Generating on screen (graphical) output
+		if (verbose){
+			# Visual summary of test results
+			xlims     <- c(min(c(llObs, nullDist)), max(c(llObs, nullDist)))         
+			histFreqs <- hist(nullDist, n = sqrt(sum(nPerm))+1, plot = FALSE)$counts
+			hist(nullDist, xlim = xlims, n = sqrt(sum(nPerm))+1, col = "blue", border = "lightblue", xlab = "null statistics", 
+                       ylab = "frequency", main = "Histogram of null distribution")
+			lines(rep(llObs, max(histFreqs)), 0.9 * (c(1:max(histFreqs))-1), col = "red", lwd = 2)
+			text(quantile(c(nullDist, llObs), probs = 0.05), 0.95 * max(histFreqs), paste("p-value:", pVal))
+			text(llObs, 0.95 * max(histFreqs), "test stat.")
+        
+			# Summary of test results
+			cat("\n")
+			cat(paste("Likelihood ratio test for block independence", sep = ""), "\n")
+			cat("----------------------------------------", "\n")
+			cat(paste("-> number of permutations : ", nPerm, sep = ""), "\n")
+			cat(paste("-> test statistic         : ", round(llObs, digits = 3), sep = ""), "\n")
+			cat(paste("-> p-value                : ", round(pVal, digits = 3), sep = ""), "\n")
+			cat(paste("-> remark                 : ", if (significanceUnlikely){"resampling terminated prematurely due to unlikely significance"} else{"none"}, sep = ""), "\n")
+			cat("----------------------------------------", "\n")
+			cat("\n") 
+		}
+	
+		# Return
+		return(list(statistic = llObs, pvalue = pVal, nulldist = nullDist, nperm = nPerm, 
+                   remark = if (significanceUnlikely){"resampling terminated prematurely due to unlikely significance"} else {"none"}))
+	}
+}
+
+
+
+
+##---------------------------------------------------------------------------------------------------------
+## 
 ## Test for Vanishing Partial Correlations
 ##
 ##---------------------------------------------------------------------------------------------------------
 
-sparsify <- function(P, threshold = c("absValue", "localFDR"), absValueCut = .25, FDRcut = .8, verbose = TRUE){
+sparsify <- function(P, threshold = c("absValue", "localFDR", "top"), absValueCut = .25, FDRcut = .9, 
+                     top = 10, output = "heavy", verbose = TRUE){
 	#####################################################################################################
 	# - Function that sparsifies/determines support of a partial correlation matrix
 	# - Support can be determined by absolute value thresholding or by local FDRs thresholding
+	# - One can also choose to threshold based on the top X of absolute partial correlations
 	# - Local FDR operates on the nonredundant non-diagonal elements of a partial correlation matrix
-	# - Function is to some extent a wrapper around certain 'GeneNet' and 'fdrtool' functions
+	# - Function is to some extent a wrapper around certain 'fdrtool' functions
 	# - P           > (possibly shrunken) precision matrix
-	# - threshold   > signifies type of thresholding: based on either absolute value or local FDR testing
+	# - threshold   > signifies type of thresholding
 	# - absValueCut > cut-off for partial correlation elements selection based on absolute value 
 	#                 thresholding. Only when threshold = 'absValue'. Default = .25
 	# - FDRcut      > cut-off for partial correlation element selection based on local FDR thresholding
-	#                 Only when threshold = 'localFDR'. Default = .8
+	#                 Only when threshold = 'localFDR'. Default = .9
+	# - top         > partial correlation element selection based on retainment 'top' number of absolute
+	#                 partial correlation. Only when threshold = 'top'. Default = 10
+	# - output      > must be one of {"heavy", "light"}, default = "heavy"
 	# - verbose     > logical indicating if intermediate output should be printed on screen
 	#                 Only when threshold = 'localFDR'. Default = TRUE
 	#
@@ -1053,34 +1560,36 @@ sparsify <- function(P, threshold = c("absValue", "localFDR"), absValueCut = .25
 	#   on the thresholding operator and the ensuing sparsified result
 	# - Input (P) may also be the unstandardized precision matrix. The function converts it to the 
 	#   partial correlation matrix
-	# - The function evualtes if the input (P) is a partial correlation/standardized precision matrix or 
+	# - The function evaluates if the input (P) is a partial correlation/standardized precision matrix or 
 	#   an unstandardized precision matrix. If the input amounts to the latter both the sparsified partial
-	#   correlation matrix and the corresponding sparsified precision matrix are given as output.
-	#   Otherwise, the ouput consists of the sparsified partial correlation/standardized precision matrix
+	#   correlation matrix and the corresponding sparsified precision matrix are given as output (when
+	#   output = "heavy"). Otherwise, the ouput consists of the sparsified partial correlation/standardized 
+	#   precision matrix.
+	# - When output = "light", only the (matrix) positions of the zero and non-zero elements are returned
 	#####################################################################################################
 
 	# Dependencies
 	# require("base")
 	# require("stats")
-	# require("corpcor")
-	# require("longitudinal")
 	# require("fdrtool")
-	# require("GeneNet")
 
 	if (!is.matrix(P)){
-		stop("P should be a matrix")
+		stop("Input (P) should be a matrix")
 	}
 	else if (!isSymmetric(P)){
-		stop("P should be a symmetric matrix")
+		stop("Input (P) should be a symmetric matrix")
 	}
 	else if (!evaluateS(P, verbose = FALSE)$posEigen){
-		stop("P is expected to be positive definite")
+		stop("Input (P) is expected to be positive definite")
 	}
 	else if (missing(threshold)){
-		stop("Need to specify type of sparsification ('absValue' or 'localFDR')")
+		stop("Need to specify type of sparsification ('absValue' or 'localFDR' or 'top')")
 	}
-	else if (!(threshold %in% c("absValue", "localFDR"))){
-		stop("Input (threshold) should be one of {'absValue', 'localFDR'}")
+	else if (!(threshold %in% c("absValue", "localFDR", "top"))){
+		stop("Input (threshold) should be one of {'absValue', 'localFDR', 'top'}")
+	}
+	else if (!(output %in% c("light", "heavy"))){
+		stop("Input (output) should be one of {'light', 'heavy'}")
 	}
 	else {
 		# Obtain partial correlation matrix
@@ -1092,14 +1601,34 @@ sparsify <- function(P, threshold = c("absValue", "localFDR"), absValueCut = .25
       		PC  <- pcor(P)
 		}
 
+		# Number of nonredundant elements
+		NR <- (ncol(P)*(ncol(P) - 1))/2
+
 		# Obtain sparsified matrix
+		if (threshold == "top"){
+			if (class(top) != "numeric"){
+				stop("Input (top) is of wrong class")
+			} else if (length(top) != 1){
+				stop("Input (top) must be a scalar")
+			} else if (!.is.int(top)){
+				stop("Input (top) should be a numeric integer")
+			} else if (top <= 0){
+				stop("Input (top) must be strictly positive")
+			} else if (top >= NR){
+				stop("Input (top) must be smaller than the number of nonredundant off-diagonal elements of the input matrix P")
+			} else {
+				absValueCut <- sort(abs(PC[upper.tri(PC)]), decreasing = TRUE)[ceiling(top)]
+				threshold   <- "absValue"
+			}
+		}
+
 		if (threshold == "absValue"){
 			if (class(absValueCut) != "numeric"){
 				stop("Input (absValueCut) is of wrong class")
 			} else if (length(absValueCut) != 1){
 				stop("Input (absValueCut) must be a scalar")
-			} else if (absValueCut < 0 | absValueCut > 1){
-				stop("Input (absValueCut) must be in the interval [0,1]")
+			} else if (absValueCut <= 0 | absValueCut >= 1){
+				stop("Input (absValueCut) must be in the interval (0,1)")
 			} else {
 				PC0 <- PC
 				PC0[!(abs(PC0) >= absValueCut)] <- 0
@@ -1115,23 +1644,19 @@ sparsify <- function(P, threshold = c("absValue", "localFDR"), absValueCut = .25
 				stop("Input (FDRcut) is of wrong class")
 			} else if (length(FDRcut) != 1){
 				stop("Input (FDRcut) must be a scalar")
-			} else if (FDRcut < 0 | FDRcut > 1){
-				stop("Input (FDRcut) must be in the interval [0,1]")
+			} else if (FDRcut <= 0 | FDRcut >= 1){
+				stop("Input (FDRcut) must be in the interval (0,1)")
 			} else if (class(verbose) != "logical"){
 				stop("Input (verbose) is of wrong class")
 			} else {
-				if (verbose){
-					PCtest <- ggm.test.edges(PC, fdr = TRUE, direct = FALSE, plot = TRUE)
-					PCnet  <- extract.network(PCtest, cutoff.ggm = FDRcut); print(PCnet)
-				} else {
-					PCtest <- ggm.test.edges(PC, fdr = TRUE, direct = FALSE, plot = FALSE)
-					PCnet  <- extract.network(PCtest, cutoff.ggm = FDRcut)
-				}
-				EdgeSet <- PCnet[,2:3]
-				PC0     <- diag(nrow(PC))
-				for(k in 1:dim(EdgeSet)[1]){
-					PC0[EdgeSet[k,1],EdgeSet[k,2]] = PC0[EdgeSet[k,2],EdgeSet[k,1]] <- PC[EdgeSet[k,1],EdgeSet[k,2]]
-				} 
+	        		lFDRs <- 1 - fdrtool(PC[upper.tri(PC)], "correlation", plot = verbose, verbose = verbose)$lfdr
+				PC0   <- diag(nrow(PC))
+				PC0[lower.tri(PC0)] <- 1
+				zeros <- which(PC0 == 0, arr.ind = TRUE)
+				zeros <- zeros[which(lFDRs <= FDRcut),]
+				PC0   <- PC
+				PC0[zeros] <- 0
+				PC0[cbind(zeros[,2], zeros[,1])] <- 0
 				if (!stan){
 					P0 <- P
 					P0[PC0 == 0] <- 0
@@ -1140,14 +1665,24 @@ sparsify <- function(P, threshold = c("absValue", "localFDR"), absValueCut = .25
 		}
 
 		# Return
-		if (stan){
-			colnames(PC0) = rownames(PC0) <- colnames(P)
-			return(PC0)
-		}
-		if (!stan){
-			colnames(PC0) = rownames(PC0) <- colnames(P)
-			colnames(P0)  = rownames(P0)  <- colnames(P)
-			return(list(sparseParCor = PC0, sparsePrecision = P0))
+		NNZ <- length(which(PC0[upper.tri(PC0)] != 0))
+            cat("- Retained elements: ", NNZ, "\n")
+            cat("- Corresponding to", round(NNZ/NR,4) * 100,"% of possible edges \n")
+            cat(" \n")
+
+		if (output == "heavy"){
+			if (stan){
+				colnames(PC0) = rownames(PC0) <- colnames(P)
+				return(PC0)
+			}
+			if (!stan){
+				colnames(PC0) = rownames(PC0) <- colnames(P)
+				colnames(P0)  = rownames(P0)  <- colnames(P)
+				return(list(sparseParCor = PC0, sparsePrecision = P0))
+			}
+		} 
+		if (output == "light"){
+			return(list(zeros = which(PC0 == 0, arr.ind = TRUE), nonzeros = which(PC0 != 0, arr.ind = TRUE)))
 		}
 	}
 }
@@ -1276,7 +1811,7 @@ KLdiv <- function(Mtest, Mref, Stest, Sref, symmetric = FALSE){
 
 
 evaluateSfit <- function(Phat, S, diag = FALSE, fileType = "pdf", nameExt = "", dir = getwd()){
-	############################################################################################
+	#####################################################################################################
 	# - Function aiding the visual inspection of the fit of the estimated (possibly regularized)
 	#   precision matrix vis-a-vis the sample covariance matrix
 	# - Phat     > (regularized) estimate of the precision matrix
@@ -1286,7 +1821,7 @@ evaluateSfit <- function(Phat, S, diag = FALSE, fileType = "pdf", nameExt = "", 
 	# - nameExt  > character giving extension of default output names.
 	#              Circumvents overwriting of output when working in single directory
 	# - dir      > specifies the directory in which the visual output is stored
-	#############################################################################################
+	#####################################################################################################
 
 	# Dependencies
 	# require("base")
@@ -1332,8 +1867,8 @@ evaluateSfit <- function(Phat, S, diag = FALSE, fileType = "pdf", nameExt = "", 
 
 		print("Visualizing covariance fit")
 		# plot 1: QQ-plot of covariances
-		if (fileType == "pdf"){pdf(paste("QQplot_covariances_", nameExt, ".pdf"))}
-		if (fileType == "eps"){setEPS(); postscript(paste("QQplot_covariances_", nameExt, ".eps"))}
+		if (fileType == "pdf"){pdf(paste(dir, "QQplot_covariances_", nameExt, ".pdf"))}
+		if (fileType == "eps"){setEPS(); postscript(paste(dir, "QQplot_covariances_", nameExt, ".eps"))}
 		if (diag){cObs <- as.numeric(S[upper.tri(S, diag = TRUE)]); cFit <- as.numeric(Shat[upper.tri(Shat, diag = TRUE)])}
 		if (!diag){cObs <- as.numeric(S[upper.tri(S)]); cFit <- as.numeric(Shat[upper.tri(Shat)])}      
 		op <- par(pty = "s") 
@@ -1342,8 +1877,8 @@ evaluateSfit <- function(Phat, S, diag = FALSE, fileType = "pdf", nameExt = "", 
 		par(op); dev.off()
 
 		# plot 2: Comparison of covariances by heatmap
-		if (fileType == "pdf"){pdf(paste("heatmap_covariances_", nameExt, ".pdf"))}
-		if (fileType == "eps"){setEPS(); postscript(paste("heatmap_covariances_", nameExt, ".eps"))}
+		if (fileType == "pdf"){pdf(paste(dir, "heatmap_covariances_", nameExt, ".pdf"))}
+		if (fileType == "eps"){setEPS(); postscript(paste(dir, "heatmap_covariances_", nameExt, ".eps"))}
 		op  <- par(pty = "s")  
 		slh <- S
 		slh[lower.tri(slh)] <- Shat[lower.tri(Shat)]
@@ -1353,8 +1888,8 @@ evaluateSfit <- function(Phat, S, diag = FALSE, fileType = "pdf", nameExt = "", 
 
 		print("Visualizing correlation fit")
     		# plot 3: QQ-plot of correlations
-		if (fileType == "pdf"){pdf(paste("QQplot_correlations_", nameExt, ".pdf"))}
-		if (fileType == "eps"){setEPS(); postscript(paste("QQplot_correlations_", nameExt, ".eps"))}
+		if (fileType == "pdf"){pdf(paste(dir, "QQplot_correlations_", nameExt, ".pdf"))}
+		if (fileType == "eps"){setEPS(); postscript(paste(dir, "QQplot_correlations_", nameExt, ".eps"))}
 		if (diag){cObs <- as.numeric(cov2cor(S)[upper.tri(S, diag = TRUE)]); cFit <- as.numeric(cov2cor(Shat)[upper.tri(Shat, diag = TRUE)])} 
 		if (!diag){cObs <- as.numeric(cov2cor(S)[upper.tri(S)]); cFit <- as.numeric(cov2cor(Shat)[upper.tri(Shat)])}
 		op <- par(pty = "s") 
@@ -1363,8 +1898,8 @@ evaluateSfit <- function(Phat, S, diag = FALSE, fileType = "pdf", nameExt = "", 
 		par(op); dev.off()
 
 		# plot 4: Comparison of correlations by heatmap
-		if (fileType == "pdf"){pdf(paste("heatmap_correlations_", nameExt, ".pdf"))}
-		if (fileType == "eps"){setEPS(); postscript(paste("heatmap_correlations_", nameExt, ".eps"))}
+		if (fileType == "pdf"){pdf(paste(dir, "heatmap_correlations_", nameExt, ".pdf"))}
+		if (fileType == "eps"){setEPS(); postscript(paste(dir, "heatmap_correlations_", nameExt, ".eps"))}
 		op  <- par(pty = "s")  
 		slh <- cov2cor(S)
 		slh[lower.tri(slh)] <- cov2cor(Shat)[lower.tri(Shat)]
@@ -1377,8 +1912,8 @@ evaluateSfit <- function(Phat, S, diag = FALSE, fileType = "pdf", nameExt = "", 
 		if (evaluateS(S, verbose = FALSE)$posEigen){
 
 			# plot 5: QQ-plot of partial correlations
-			if (fileType == "pdf"){pdf(paste("QQplot_partCorrelations_", nameExt, ".pdf"))}
-			if (fileType == "eps"){setEPS(); postscript(paste("QQplot_partCorrelations_", nameExt, ".eps"))}
+			if (fileType == "pdf"){pdf(paste(dir, "QQplot_partCorrelations_", nameExt, ".pdf"))}
+			if (fileType == "eps"){setEPS(); postscript(paste(dir, "QQplot_partCorrelations_", nameExt, ".eps"))}
 			if (diag){cObs <- as.numeric(pcor(solve(S))[upper.tri(S)], diag = TRUE); cFit <- as.numeric(pcor(Phat)[upper.tri(Phat, diag = TRUE)])}
 			if (!diag){cObs <- as.numeric(pcor(solve(S))[upper.tri(S)]); cFit <- as.numeric(pcor(Phat)[upper.tri(Phat)])}
 			op <- par(pty = "s")  
@@ -1387,8 +1922,8 @@ evaluateSfit <- function(Phat, S, diag = FALSE, fileType = "pdf", nameExt = "", 
 			par(op); dev.off()
 
 			# plot 6: Comparison of partial correlations by heatmap
-			if (fileType == "pdf"){pdf(paste("heatmap_partCorrelations_", nameExt, ".pdf"))}
-			if (fileType == "eps"){setEPS(); postscript(paste("heatmap_partCorrelations_", nameExt, ".eps"))}
+			if (fileType == "pdf"){pdf(paste(dir, "heatmap_partCorrelations_", nameExt, ".pdf"))}
+			if (fileType == "eps"){setEPS(); postscript(paste(dir, "heatmap_partCorrelations_", nameExt, ".eps"))}
 			op  <- par(pty = "s")  
 			slh <- pcor(solve(S))
 			slh[lower.tri(slh)] <- pcor(Phat)[lower.tri(Phat)]
@@ -1497,18 +2032,59 @@ ridgePathS <- function (S, lambdaMin, lambdaMax, step, type = "Alt", target = de
 
 		# Calculate paths
 		if (verbose){cat("Calculating...", "\n")}
-        	for (k in 1:length(lambdas)){
-            	P <- ridgeS(S, lambdas[k], type = type, target = target)
-	    		if (plotType=="pcor"){YforPlot <- cbind(YforPlot, pcor(P)[upper.tri(P)])}
-	    		if (plotType=="prec"){YforPlot <- cbind(YforPlot, P[upper.tri(P, diag = diag)])}
-	    		if (plotType=="cov"){YforPlot <- cbind(YforPlot, solve(P)[upper.tri(P, diag = diag)])}
-	    		if (plotType=="cor"){YforPlot <- cbind(YforPlot, cov2cor(solve(P))[upper.tri(P)])}
-            	if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
+		if (type == "Alt" & all(target == 0)){
+			if (!isSymmetric(target)){
+				stop("Input (target) should be symmetric")
+			} else if (dim(target)[1] != dim(S)[1]){
+				stop("Inputs ('S' and 'target') should be of the same dimension")
+			} else {
+				Spectral <- eigen(S, symmetric = TRUE)
+				Vinv     <- solve(Spectral$vectors)
+        			for (k in 1:length(lambdas)){
+					Eigshrink <- .eigShrink(Spectral$values, lambdas[k])
+					P         <- t(Vinv) %*% diag(1/Eigshrink) %*% Vinv
+	    				if (plotType=="pcor"){YforPlot <- cbind(YforPlot, pcor(symm(P))[upper.tri(P)])}
+	    				if (plotType=="prec"){YforPlot <- cbind(YforPlot, P[upper.tri(P, diag = diag)])}
+	    				if (plotType=="cov") {YforPlot <- cbind(YforPlot, solve(P)[upper.tri(P, diag = diag)])}
+	    				if (plotType=="cor") {YforPlot <- cbind(YforPlot, cov2cor(solve(P))[upper.tri(P)])}
+            			if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
+				}
+        		}
+		} else if (type == "Alt" & all(target[!diag(nrow(target))] == 0) & (length(unique(diag(target))) == 1)){
+			if (!isSymmetric(target)){
+				stop("Input (target) should be symmetric")
+			} else if (dim(target)[1] != dim(S)[1]){
+				stop("Inputs ('S' and 'target') should be of the same dimension")
+			} else if (any(diag(target) <= 0)){
+				stop("Input (target) should be p.d.")
+			} else {
+				varPhi   <- unique(diag(target))
+				Spectral <- eigen(S, symmetric = TRUE)
+				Vinv     <- solve(Spectral$vectors)
+        			for (k in 1:length(lambdas)){
+					Eigshrink <- .eigShrink(Spectral$values, lambdas[k], const = varPhi)
+					P         <- t(Vinv) %*% diag(1/Eigshrink) %*% Vinv
+	    				if (plotType=="pcor"){YforPlot <- cbind(YforPlot, pcor(symm(P))[upper.tri(P)])}
+	    				if (plotType=="prec"){YforPlot <- cbind(YforPlot, P[upper.tri(P, diag = diag)])}
+	    				if (plotType=="cov") {YforPlot <- cbind(YforPlot, solve(P)[upper.tri(P, diag = diag)])}
+	    				if (plotType=="cor") {YforPlot <- cbind(YforPlot, cov2cor(solve(P))[upper.tri(P)])}
+            			if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
+				}
+			}
+        	} else {
+			for (k in 1:length(lambdas)){
+            		P <- ridgeS(S, lambdas[k], type = type, target = target)
+	    			if (plotType=="pcor"){YforPlot <- cbind(YforPlot, pcor(symm(P))[upper.tri(P)])}
+	    			if (plotType=="prec"){YforPlot <- cbind(YforPlot, P[upper.tri(P, diag = diag)])}
+	    			if (plotType=="cov") {YforPlot <- cbind(YforPlot, solve(P)[upper.tri(P, diag = diag)])}
+	    			if (plotType=="cor") {YforPlot <- cbind(YforPlot, cov2cor(solve(P))[upper.tri(P)])}
+            		if (verbose){cat(paste("lambda = ", lambdas[k], " done", sep = ""), "\n")}
+			}
         	}
 
 		# Visualize
-        	if (plotType=="cor"){ylabel <- "penalized correlation"}
-        	if (plotType=="cov"){ylabel <- "penalized covariances"}
+        	if (plotType=="cor") {ylabel <- "penalized correlation"}
+        	if (plotType=="cov") {ylabel <- "penalized covariances"}
         	if (plotType=="pcor"){ylabel <- "penalized partial correlation"}
         	if (plotType=="prec"){ylabel <- "penalized precision elements"}
 		if (type == "Alt"){Main = "Alternative ridge estimator"}
@@ -1817,23 +2393,26 @@ Ugraph <- function(M, type = c("plain", "fancy", "weighted"), lay = layout.circl
 
 ##---------------------------------------------------------------------------------------------------------
 ## 
-## Function for Network Statistics
+## Functions for Topology Statistics
 ##
 ##---------------------------------------------------------------------------------------------------------
 
-GGMnetworkStats <- function(sparseP){
-	############################################################################################
+GGMnetworkStats <- function(sparseP, as.table = FALSE){
+	#####################################################################################################
 	# - Function that calculates various network statistics from a sparse matrix
 	# - Input matrix is assumed to be a sparse precision of partial correlation matrix
 	# - The sparse precision matrix is taken to represent a conditional independence graph
-	# - sparseP > sparse precision/partial correlation matrix
+	# - sparseP  > sparse precision/partial correlation matrix
+	# - as.table > logical indicating if output should be returned as table; default = FALSE
 	# 
 	# - NOTES (network statistics produced):
 	# - Node degree
 	# - Betweenness centrality
 	# - Closeness centrality
+	# - Eigenvalue centrality
 	# - Number of negative edges for each node
 	# - Number of positive edges for each node
+	# - Assessment if network/graph is chordal (triangulated)
 	# - Mutual information of each variate with all other variates
 	# - Variance of each variate (based on inverse sparsified precision matrix)
 	# - Partial variance of each variate (= 1 when input matrix is partial correlation matrix)
@@ -1841,7 +2420,7 @@ GGMnetworkStats <- function(sparseP){
 	#
 	# - REFERENCE:
 	# - Newman, M.E.J. (2010), "Networks: an introduction", Oxford University Press
-	#############################################################################################
+	#####################################################################################################
 
 	# Dependencies
 	# require("base")
@@ -1856,6 +2435,9 @@ GGMnetworkStats <- function(sparseP){
 	else if (!evaluateS(sparseP, verbose = FALSE)$posEigen){
 		stop("Input (sparseP) is expected to be positive definite")
 	}
+	else if (class(as.table) != "logical"){
+		stop("Input (as.table) is of wrong class")
+	} 
 	else{
 		# Some warnings
 		if (all(sparseP != 0)){warning("Given input (sparseP) implies a saturated conditional independence graph")}
@@ -1866,9 +2448,8 @@ GGMnetworkStats <- function(sparseP){
     		S     <- solve(sparseP)
 
     		# Calculate nodes' mutual information
-    		MI    <- unlist(lapply(1:nrow(S), function(j, S){ log(det(S[-j,-j])) - log(det(S[-j,-j] - S[-j,j,drop=FALSE] %*% S[j,-j,drop=FALSE] / S[j,j])) }, S = S))
-		Nodes <- colnames(sparseP)
-		MI    <- data.frame(Nodes, MI)
+    		MI        <- unlist(lapply(1:nrow(S), function(j, S){ log(det(S[-j,-j])) - log(det(S[-j,-j] - S[-j,j,drop=FALSE] %*% S[j,-j,drop=FALSE] / S[j,j])) }, S = S))
+		names(MI) <- colnames(sparseP)
     	
 		# Signs of edges
 		diag(sparseP) <- 0 
@@ -1880,8 +2461,337 @@ GGMnetworkStats <- function(sparseP){
     		CIG <- graph.adjacency(AM, mode = "undirected")
 
 		# Return
-    		return(list(degree = degree(CIG), betweenness = betweenness(CIG), closeness = closeness(CIG),  
-		 	 nNeg = nNeg, nPos = nPos, mutualInfo = MI, variance = diag(S), partialVariance = pvars))
+		if (as.table){
+			networkStats <- cbind(degree(CIG), betweenness(CIG), closeness(CIG), evcent(CIG)$vector, nNeg, nPos, MI, diag(S), pvars)
+			colnames(networkStats) <- c("degree", "betweenness", "closeness", "eigenCentrality", "nNeg", "nPos", "mutualInfo", "variance", "partialVar")
+			return(networkStats)
+		} 
+		if (!as.table){
+			return(list(degree = degree(CIG), betweenness = betweenness(CIG), closeness = closeness(CIG), eigenCentrality = evcent(CIG)$vector,
+                         nNeg = nNeg, nPos = nPos, chordal = is.chordal(CIG)$chordal, mutualInfo = MI, variance = diag(S), partialVar = pvars))
+		}
+	}
+}
+
+
+
+GGMpathStats <- function(P0, node1, node2, neiExpansions = 2, verbose = TRUE, graph = TRUE, nrPaths = 2, 
+                         lay = layout.circle, nodecol = "skyblue", Vsize = 15, Vcex = .6, VBcolor = "darkblue", 
+                         VLcolor = "black", all.edges = TRUE, prune = TRUE, legend = TRUE, scale = 1,
+                         Lcex = .8, PTcex = 2, main = ""){
+	#####################################################################################################
+	# - Function that expresses the covariance between a pair of variables as a sum of path weights 
+	# - The sum of path weights is based on the shortest paths connecting the pair in an undirected graph
+	# - P0            > sparse precision/partial correlation matrix
+	# - node1         > start node of the path
+	# - node2         > end node of the path
+	# - neiExpansions > a numeric determining how many times the neighborhood around the start and end 
+	#                   node should be expanded in the search for shortest paths between the node pair.
+	#                   Default = 2
+	# - verbose       > logical indicating if output should also be printed on screen. Default = TRUE
+	# - graph         > Optional argument for visualization strongest paths, default = TRUE
+	# - nrPaths		> indicates the number of paths with the highest contribution to the marginal covariance
+	#                   between the indicated node pair (node1 and node2) to be visualized/highlighted; 
+	#                   only when graph = TRUE
+	# - lay           > determines layout of the graph. All layouts in 'layout{igraph}' are accepted.
+	#		        Default = layout.circle, giving circular layout; only when graph = TRUE
+	# - nodecol       > gives color of node1 and node2; only when graph = TRUE
+	# - Vsize   	> gives vertex size, default = 15; only when graph = TRUE
+	# - Vcex    	> gives size vertex labels, default = .6; only when graph = TRUE
+	# - VBcolor 	> gives color of the vertex border, default = "darkblue"; only when graph = TRUE
+	# - VLcolor 	> gives color of the vertex labels, default = "black"; only when graph = TRUE
+	# - all.edges     > logical indicating if edges other than those implied by the 'nrPaths' paths between
+	#                   node1 and node2 should also be visualized. Default = TRUE; only when graph = TRUE
+	# - prune         > logical indicating if vertices of degree 0 should be removed. Default = TRUE;
+	#                   only when graph = TRUE
+	# - legend        > optional inclusion of color legend, default = TRUE; only when graph = TRUE
+	# - scale         > scale factor for visualizing strenght of edges, default = 1. It is a relative scaling
+	#                   factor, in the sense that the edges implied by the 'nrPaths' paths between
+	#                   node1 and node2 have edge thickness that is twice this scaling factor (so it is
+	#                   a scaling factor vis-a-vis the unimplied edges); only when all.edges = TRUE
+	# - Lcex          > scaling legend box, default = .8; only when legend = TRUE
+	# - PTcex         > scaling node in legend box, default = 2; only when legend = TRUE
+	# - main          > character specifying heading figure, default = "" 
+	#
+	# - NOTES:
+	# - As in Jones & West (2005), paths whose weights have an opposite sign to the marginal covariance
+	#   (between endnodes of the path) are referred to as 'moderating paths' while paths whose weights 
+	#   have the same sign as the marginal covariance are referred to as 'mediating' paths
+	#####################################################################################################
+
+	# Dependencies
+	# require("base")
+	# require("igraph")
+	# require("reshape")
+
+	if (!is.matrix(P0)){
+		stop("Input (P0) should be a matrix")
+	}
+	else if (!isSymmetric(P0)){
+		stop("Input (P0) should be a symmetric matrix")
+	}
+	else if (!evaluateS(P0, verbose = FALSE)$posEigen){
+		stop("Input (P0) is expected to be positive definite")
+	}
+	else if (class(node1) != "numeric"){
+		stop("Input (node1) is of wrong class")
+	}
+	else if (length(node1) != 1){
+		stop("Length input (node1) must be 1")
+	} 
+	else if (!.is.int(node1)){
+		stop("Input (node1) should be a numeric integer")
+	}
+	else if (node1 < 1){
+		stop("Input (node1) cannot be zero or negative")
+	}
+	else if (node1 > ncol(P0)){
+		stop("Input (node1) cannot exceed the number of variables in P0")
+	}
+	else if (class(node2) != "numeric"){
+		stop("Input (node2) is of wrong class")
+	}
+	else if (length(node2) != 1){
+		stop("Length input (node2) must be 1")
+	}
+	else if (!.is.int(node2)){
+		stop("Input (node2) should be a numeric integer")
+	}
+	else if (node2 < 1){
+		stop("Input (node2) cannot be zero or negative")
+	}
+	else if (node2 > ncol(P0)){
+		stop("Input (node2) cannot exceed the number of variables in P0")
+	}
+	else if (node1 == node2){
+		stop("Inputs (node1 and node2) cannot be equal")
+	}
+	else if (class(neiExpansions) != "numeric"){
+		stop("Input (neiExpansions) is of wrong class")
+	}
+	else if (length(neiExpansions) != 1){
+		stop("Length input (neiExpansions) must be 1")
+	}
+	else if (!.is.int(neiExpansions)){
+		stop("Input (neiExpansions) should be a numeric integer")
+	}
+	else if (neiExpansions < 1){
+		stop("Input (neiExpansions) cannot be zero or negative")
+	}
+	else if (class(graph) != "logical"){
+		stop("Input (graph) is of wrong class")
+	}
+	else if (class(verbose) != "logical"){
+		stop("Input (verbose) is of wrong class")
+	} 
+	else {
+		# Some warnings
+		if (all(P0 != 0)){warning("Given input (P0) implies a saturated conditional independence graph")}
+		if (all(P0[!diag(nrow(P0))] == 0)){warning("Given input (P0) implies an empty conditional independence graph")}
+
+		# Precision associated graph
+		adjMat <- adjacentMat(P0)
+		Names  <- colnames(P0)
+		colnames(adjMat) <- 1:nrow(P0)
+		rownames(adjMat) <- 1:nrow(P0)
+		G <- graph.adjacency(adjMat, mode = "undirected")
+
+		# Is there a connection between the specified nodes?
+		pathExits <- is.finite(shortest.paths(G, node1, node2))
+
+		# If nodes are connected, evaluate path contributions
+		if (!pathExits){
+			stop("provided node pair is not connected.")
+		} else {
+			# Determinant of precision
+			detP0 <- det(P0)
+
+			# Objects to be returned
+			paths <- list()
+			pathStats <- numeric()
+
+			# Shortest paths between the nodes
+			slh <- get.all.shortest.paths(G, node1, node2)$res
+			for (u in 1:length(slh)){ 
+				fullPath <- slh[[u]] 
+				pName <- .path2string(fullPath)
+				paths[[length(paths)+1]] <- fullPath 
+				pathStats <- rbind(pathStats, c(length(slh[[u]])-1, .pathContribution(P0, fullPath, detP0)))
+				rownames(pathStats)[nrow(pathStats)] <- pName
+			}
+			nei1 <- node1
+			nei2 <- node2
+		
+			for (u in 1:neiExpansions){
+				# Consider longer paths between the nodes
+				nei1temp <- nei1
+				nei2temp <- nei2
+				for (v1 in 1:length(nei1)){
+					nei1temp <- c(nei1temp, neighbors(G, nei1[v1]))
+				}
+				for (v2 in 1:length(nei2)){
+					nei2temp <- c(nei2temp, neighbors(G, nei2[v2]))
+				}
+				nei1 <- setdiff(unique(nei1temp), node1)
+				nei2 <- setdiff(unique(nei2temp), node2)
+				slh  <- .pathAndStats(G, node1, node2, nei1, nei2, P0, detP0, rownames(pathStats))
+				pathStats <- rbind(pathStats, slh$pathStats)
+				paths <- c(paths, slh$paths)
+			}
+
+			# Wrap up
+			paths <- paths[order(abs(pathStats[,2]), decreasing=TRUE)]
+			pathStats <- pathStats[order(abs(pathStats[,2]), decreasing=TRUE),]
+			names(paths) <- rownames(pathStats)
+			colnames(pathStats) <- c("length", "contribution")
+
+			# Summary
+			if (verbose){
+				covNo1No2 <- solve(P0)[node1, node2]
+				covNo1No2expl <- sum(pathStats[,2])
+
+				# Reformat results
+				statsTable <- data.frame(cbind(rownames(pathStats), pathStats[,1], round(pathStats[,2], 5)))
+				rownames(statsTable) <- NULL
+				colnames(statsTable) <- c("path", "length", "contribution")
+
+				# Print results on screen
+				cat(paste("Covariance between node pair : ", round(covNo1No2, 5), sep=""), "\n")
+				cat("----------------------------------------", "\n")
+				print(statsTable, quote=FALSE)
+	            	cat("----------------------------------------", "\n")			
+				cat(paste("Sum path contributions       : ", round(covNo1No2expl, 5), sep=""), "\n")
+	
+			}
+
+			# Visualize
+			if (graph){
+				if (class(nrPaths) != "numeric"){
+					stop("Input (nrPaths) is of wrong class")
+				} else if (length(nrPaths) != 1){
+					stop("Length input (nrPaths) must be one")
+				} else if (!.is.int(nrPaths)){
+					stop("Input (nrPaths) should be a numeric integer")
+				} else if (nrPaths <= 0){
+					stop("Input (nrPaths) must be a strictly positive integer")
+				} else if (nrPaths > length(paths)){
+					stop("Input (nrPaths) cannot exceed the total number of paths discerned")
+				} else if (class(nodecol) != "character"){
+					stop("Input (nodecol) is of wrong class")
+				} else if (length(nodecol) != 1){
+					stop("Length input (nodecol) must be one")
+				} else if (class(Vsize) != "numeric"){
+					stop("Input (Vsize) is of wrong class")
+				} else if (length(Vsize) != 1){
+					stop("Length input (Vsize) must be one")
+				} else if (Vsize <= 0){
+					stop("Input (Vsize) must be strictly positive")
+				} else if (class(Vcex) != "numeric"){
+					stop("Input (Vcex) is of wrong class")
+				} else if (length(Vcex) != 1){
+					stop("Length input (Vcex) must be one")
+				} else if (Vcex <= 0){
+					stop("Input (Vcex) must be strictly positive")
+				} else if (class(VBcolor) != "character"){
+					stop("Input (VBcolor) is of wrong class")
+				} else if (length(VBcolor) != 1){
+					stop("Length input (VBcolor) must be one")
+				} else if (class(VLcolor) != "character"){
+					stop("Input (VLcolor) is of wrong class")
+				} else if (length(VLcolor) != 1){
+					stop("Length input (VLcolor) must be one")
+				} else if (class(all.edges) != "logical"){
+					stop("Input (all.edges) is of wrong class")
+				} else if (class(prune) != "logical"){
+					stop("Input (prune) is of wrong class")
+				} else if (class(legend) != "logical"){
+					stop("Input (legend) is of wrong class")
+				} else if (class(main) != "character"){
+					stop("Input (main) is of wrong class")
+				} else {
+					# Preliminaries
+					AM <- adjacentMat(P0)
+					GA <- graph.adjacency(AM, mode = "undirected")	
+					colnames(P0) = rownames(P0) <- seq(1, ncol(P0), by = 1)
+					Mmelt <- melt(P0)
+					Mmelt <- Mmelt[Mmelt$X1 > Mmelt$X2,]
+					Mmelt <- Mmelt[Mmelt$value != 0,]
+
+					# Determine if path is mediating or moderating and color accordingly
+					for (k in 1:nrPaths){
+						Path <- unlist(paths[k])
+						if (sign(covNo1No2) == sign(pathStats[k,2])){COL = "green"}
+						if (sign(covNo1No2) != sign(pathStats[k,2])){COL = "red"}		
+						for (i in 1:(length(Path) - 1)){
+							if (Path[i] > Path[i + 1]){
+								tempX1 <- Path[i]
+								tempX2 <- Path[i + 1]
+							} else {
+								tempX1 <- Path[i + 1]
+								tempX2 <- Path[i]
+							}
+							row <- which(Mmelt$X1 == tempX1 & Mmelt$X2 == tempX2)
+							E(GA)[row]$color <- COL
+						}
+					}
+
+					# Coloring nodes
+					V(GA)$color <- "white"
+					V(GA)$color[node1] <- nodecol
+					V(GA)$color[node2] <- nodecol
+
+					# Produce graph
+					if (all.edges){
+						if (class(scale) != "numeric"){
+							stop("Input (scale) is of wrong class")
+						} else if (length(scale) != 1){
+							stop("Length input (scale) must be one")
+						} else if (scale <= 0){
+							stop("Input (scale) must be strictly positive")
+						} else {
+							E(GA)[is.na(E(GA)$color)]$color <- "grey"
+							E(GA)$weight <- 1
+							E(GA)[E(GA)$color == "green"]$weight <- 2
+							E(GA)[E(GA)$color == "red"]$weight   <- 2
+							if (prune){GA <- delete.vertices(GA, which(degree(GA) < 1))}
+							plot(GA, layout = lay, vertex.size = Vsize, vertex.label.family = "sans", vertex.label.cex = Vcex, 
+							     edge.width = scale*abs(E(GA)$weight), vertex.color = V(GA)$color, vertex.frame.color = VBcolor,
+                                               vertex.label.color = VLcolor, main = main)
+						}
+					} else {		
+						if (prune){GA <- delete.vertices(GA, which(degree(GA) < 1))}				
+						plot(GA, layout = lay, vertex.size = Vsize, vertex.label.family = "sans", vertex.label.cex = Vcex, 
+						     vertex.color = V(GA)$color, vertex.frame.color = VBcolor, vertex.label.color = VLcolor, main = main)
+					}
+
+					# Legend
+					if (legend){
+						if (class(Lcex) != "numeric"){
+							stop("Input (Lcex) is of wrong class")
+						} else if (length(Lcex) != 1){
+							stop("Length input (Lcex) must be one")
+						} else if (Lcex <= 0){
+							stop("Input (Lcex) must be strictly positive")
+						} else if (class(PTcex) != "numeric"){
+							stop("Input (PTcex) is of wrong class")
+						} else if (length(PTcex) != 1){
+							stop("Length input (PTcex) must be one")
+						} else if (PTcex <= 0){
+							stop("Input (PTcex) must be strictly positive")
+						} else {
+							legend("bottomright", c("mediating path", "moderating path"), lty=c(1,1), 
+							col = c("green", "red"), cex = Lcex, pt.cex = PTcex)
+						}
+					}
+				}
+			}
+
+			# Return
+			Numeric    <- rownames(adjMat)
+			VarName    <- Names
+	      	identifier <- data.frame(Numeric, VarName)
+			return(list(pathStats = pathStats, paths = paths, Identifier = identifier))
+		}
 	}
 }
 
@@ -1890,9 +2800,167 @@ GGMnetworkStats <- function(sparseP){
 
 ##---------------------------------------------------------------------------------------------------------
 ## 
-## Miscellaneous
+## Wrapper function
 ##
 ##---------------------------------------------------------------------------------------------------------
+
+fullMontyS <- function(Y, lambdaMin, lambdaMax, target = default.target(covML(Y)), dir = getwd(), 
+                       fileTypeFig = "pdf", FDRcut = .9, nOutput = TRUE, verbose = TRUE){
+	#####################################################################################################
+	# - Function that forms a wrapper around the rags2ridges functionalities
+	# - Invokes functionalities to get from data to graph and topology summaries
+	# - Y           > (raw) Data matrix, variables in columns
+	# - lambdaMin   > minimum value penalty parameter
+	# - lambdaMax   > maximum value penalty parameter
+	# - target      > target (precision terms) for Type I estimators, default = default.target(covML(Y))
+	# - dir         > specifies the directory in which the (visual) output is stored
+	# - fileTypeFig > signifies filetype of visual output; Should be one of {"pdf", "eps"}
+	# - FDRcut      > cut-off for partial correlation element selection based on local FDR thresholding.
+	#                 Default = .9
+	# - nOutput     > logical indicating if numeric output should be given
+	# - verbose     > logical indicating if intermediate output should be printed on screen
+	#
+	# - NOTES:
+	# - Always uses the alternative ridge estimator by van Wieringen and Peeters (2014)
+	# - Always uses LOOCV by Brent for optimal penalty parameter determination
+	# - Always uses support determination by local FDR thresholding
+	# - Visualizes the network by 'Ugraph' with type = "fancy". Network on basis partial correlations
+	# - Network statistics calculated on sparsified partial correlation network
+	# - There are no elaborate input checks as these are all covered by the indvidual functions invoked
+	#####################################################################################################
+
+	# Dependencies
+	# require("base")
+	# require("stats")
+	# require("graphics")
+	# require("Hmisc")  
+	# require("fdrtool")
+	# require("igraph")
+	# require("reshape")
+	# require("utils")
+
+	if (class(dir) != "character"){
+		stop("Specify directory for output (dir) as 'character'")
+	}
+	else if (!(fileTypeFig %in% c("pdf", "eps"))){
+		stop("Input (fileTypeFig) should be one of {'pdf', 'eps'}")
+	}
+	else if (class(nOutput) != "logical"){
+		stop("Input (nOutput) is of wrong class")
+	}
+	else if (class(verbose) != "logical"){
+		stop("Input (verbose) is of wrong class")
+	} 
+	else {
+		# In case one does not know:
+		cat("Output files are stored in the following directory:", dir, "\n")
+		cat("\n")
+
+ 		# Determine optimal penalty and precision
+		if (verbose){cat("Progress:", "\n")}
+		if (verbose){cat("Determining optimal penalty value...", "\n")}
+		optimal <- optPenalty.LOOCVauto(Y, lambdaMin = lambdaMin, lambdaMax = lambdaMax, lambdaInit = (lambdaMin+lambdaMax)/2, target = target)
+
+		# Condition number plot
+		if (verbose){cat("Generating condition number plot...", "\n")}
+		if (fileTypeFig == "pdf"){pdf(paste(dir, "Condition_Number_Plot.pdf"))}
+		if (fileTypeFig == "eps"){setEPS(); postscript(paste(dir, "Condition_Number_Plot.eps"))}
+		conditionNumberPlot(covML(Y), lambdaMin = lambdaMin, lambdaMax = lambdaMax, step = 100000, target = target, verticle = TRUE, 
+					  value = optimal$optLambda, main = FALSE, verbose = FALSE)
+		dev.off()
+		
+		# Sparsify the precision matrix
+		if (verbose){cat("Determining support...", "\n")}
+		PC0 <- sparsify(optimal$optPrec, threshold = "localFDR", FDRcut = FDRcut, output = "heavy", verbose = FALSE)$sparseParCor
+
+		# Visualize the network
+		if (verbose){cat("Visualizing network...", "\n")}
+		if (fileTypeFig == "pdf"){pdf(paste(dir, "Network.pdf"))}
+		if (fileTypeFig == "eps"){setEPS(); postscript(paste(dir, "Network.eps"))}
+		Ugraph(PC0, type = "fancy", Vsize = ncol(PC0)/10, Vcex = ncol(PC0)/130,)
+		dev.off()
+
+		# Calculate network statistics 
+		if (verbose){cat("Calculating network statistics...", "\n")}
+		Stats <- GGMnetworkStats(PC0, as.table = TRUE)
+		capture.output(print(Stats), file = paste(dir, "Network_Statistics.txt"))
+
+		# Done
+		if (verbose){cat("DONE!", "\n")}
+
+		# Return
+		if (nOutput){
+			return(list(optLambda = optimal$optLambda, optPrec = optimal$optPrec, sparseParCor = PC0, networkStats = Stats))
+		}
+	}
+}
+
+
+
+
+
+
+######################################################################################################################
+######################################################################################################################
+##--------------------------------------------------------------------------------------------------------------------
+## 
+## Section B: rags2ridges Fused
+##
+##--------------------------------------------------------------------------------------------------------------------
+######################################################################################################################
+######################################################################################################################
+
+# In development for rags2ridges 2.0 and up
+
+
+
+
+
+
+######################################################################################################################
+######################################################################################################################
+##--------------------------------------------------------------------------------------------------------------------
+## 
+## Section C: rags2ridges Robust
+##
+##--------------------------------------------------------------------------------------------------------------------
+######################################################################################################################
+######################################################################################################################
+
+# In development for rags2ridges 2.0 and up
+
+
+
+
+
+
+######################################################################################################################
+######################################################################################################################
+##--------------------------------------------------------------------------------------------------------------------
+## 
+## Section D: rags2ridges XY or rags2ridges 2 DCMG
+##
+##--------------------------------------------------------------------------------------------------------------------
+######################################################################################################################
+######################################################################################################################
+
+# In development for rags2ridges 2.0 and up
+
+
+
+
+
+
+######################################################################################################################
+######################################################################################################################
+##--------------------------------------------------------------------------------------------------------------------
+## 
+## Section E: Miscellaneous
+##
+##--------------------------------------------------------------------------------------------------------------------
+######################################################################################################################
+######################################################################################################################
+
 
 .TwoCents <- function(){
 	#####################################################################################################
@@ -1910,12 +2978,35 @@ GGMnetworkStats <- function(sparseP){
 
 
 
+.Endorsement <- function(Brooke){
+	#####################################################################################################
+	# - Endorsement
+	#####################################################################################################
 
-##---------------------------------------------------------------------------------------------------------
+	cat("
+            ##############################################
+            ##############################################
+            To be Bold & Beautiful, one has to go Ridge. 
+                                            - Brooke Logan 
+            ##############################################
+            ############################################## \n")
+}
+
+
+
+
+
+
+######################################################################################################################
+######################################################################################################################
+##--------------------------------------------------------------------------------------------------------------------
 ## 
-## NOTES
+## Section F: Update NOTES
 ##
-##---------------------------------------------------------------------------------------------------------
+##--------------------------------------------------------------------------------------------------------------------
+######################################################################################################################
+######################################################################################################################
+
 
 ## Updates from version 1.1 to 1.2
 #- Inclusion function for ML estimation of the sample covariance matrix: 'covML'
@@ -1965,5 +3056,45 @@ GGMnetworkStats <- function(sparseP){
 	# By usage new ridgeS and avoidance of redundant eigendecompositions
 #- Default target in 'ridgeS', 'conditionNumberPlot', 'optPenalty.aLOOCV' and 'optPenalty.LOOCV' now "DAIE" option in 'default.target'
 
+
+## Updates from version 1.3 to 1.4
+#- Inclusion hidden function '.pathContribution' for usage in 'GGMpathStats' function
+#- Inclusion hidden function '.path2string' for usage in 'GGMpathStats' function
+#- Inclusion hidden function '.pathAndStats' for usage in 'GGMpathStats' function
+#- Inclusion hidden function '.cvl' for usage in 'optPenalty.LOOCVauto' function
+#- Inclusion hidden function '.lambdaNullDist' for usage in 'GGMblockNullPenalty' function
+#- Inclusion hidden function '.blockTestStat' for usage in 'GGMblockTest' function
+#- Inclusion function that expresses the covariance between a pair of variables as a sum of path weights: 'GGMpathStats'
+#- Inclusion function that determines the optimal penalty parameter value by application of the Brent algorithm to the LOOCV log-likelihood: 'optPenalty.LOOCVauto'
+#- Inclusion function that generates the distribution of the penalty parameter under the null hypothesis of block independence: 'GGMblockNullPenalty'
+#- Inclusion function that performs a permutation test for block structure in the precision matrix: 'GGMblockTest'
+#- Inclusion wrapper function: 'fullMontyS'
+#- New features updated 'optPenalty.aLOOCV' function:
+	# For scalar matrix targets the complete solution path depends on only 1 eigendecomposition and 1 matrix inversion
+	# Meaning: the function is sped up somewhat by lifting redundant inversions out of 'for' loops
+	# Optional graph now plots the approximated LOOCV negative log-likelihood instead of ln(approximated LOOCV negative log-likelihood)
+	# Legend in optional graph has been adapated accordingly
+#- New features updated 'optPenalty.LOOCV' function:
+	# Optional graph now plots the LOOCV negative log-likelihood instead of ln(LOOCV negative log-likelihood)
+	# Legend in optional graph has been adapated accordingly
+#- New features updated 'default.target' function:
+	# Inclusion new default target option: 'type = DIAES'. Gives diagonal matrix with inverse of average of eigenvalues of S as entries 
+#- New features updated 'GGMnetworkStats' function:
+	# Now also assesses (and returns a logical) if graph/network is chordal
+	# Now also includes assesment of the eigenvalue centrality
+	# Now includes option to have list or table output
+#- New features updated 'ridgePathS' function:
+	# Sped up considerably for rotation equivariant alternative estimator
+	# By avoidance of redundant eigendecompositions and inversions
+	# Now catches breakdown due to rounding preculiarities when plotType = "pcor"
+#- New features updated 'sparsify' function:
+	# Inclusion new thresholding function 'top': retainment of top elements based on absolute partial correlation 
+	# Inclusion output option: When output = "light", only the (matrix) positions of the zero and non-zero elements are returned
+	# Function no longer dependent on GeneNet; now makes direct use of fdrtool
+	# Function now also prints some general information on the number of edges retained
+#- Corrected small error in 'evaluateSfit' function
+	# The 'dir' argument was not properly used previously. Corrected.
+
+ 
 
 
