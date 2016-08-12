@@ -3,6 +3,73 @@
 
 \title{News for Package \cpkg{rags2ridges}}
 
+
+\section{Changes in version 2.1}{
+  \subsection{Documentation:}{
+    \itemize{
+      \item Updated \code{CITATION} file
+      \item Updated \code{README} file
+    }
+  }
+  \subsection{Bug fixes:}{
+    \itemize{
+      \item Fixed bug in \code{Ugraph}:
+        \itemize{
+          \item Incorrectly stated before that all igraph layouts were supported.
+          \item Now they indeed are supported.
+      }
+    }
+  }
+  \subsection{Notifications:}{
+    \itemize{
+      \item \code{conditionNumberPlot} is deprecated. Please use \code{CNplot} instead
+      \item Features of the \code{CNplot} function (above and beyond \code{conditionNumberPlot}):
+        \itemize{
+          \item The \code{digitLoss} and \code{rlDist} arguments have been removed
+          \item These arguments have been replaced with the logical argument \code{Iaids}
+          \item \code{Iaids = TRUE} amends the basic condition number plot with interpretational aids
+          \item These aids are the approximate loss in digits of accuracy and and approximation of the acceleration             along the regularization path of the condition number
+          \item Argument \code{main} is now a character argument
+          \item Argument \code{value} now by default takes the value 1e-100 (convenient)
+          \item Now uses C++ functionalty for additional speed
+      }
+    }
+  }
+  \subsection{Adjustments:}{
+    \itemize{
+      \item \code{edgeHeat} now has aligned x-axis labels
+      \item The visualizations of the \code{optPenalty.LOOCV} and \code{optPenalty.aLOOCV} functions
+      now will no longer produce horizontal and/or vertical lines that fall outside the boundaries
+      of the figure
+      \item \code{optPenalty.LOOCV} now uses log-equidistant penalty grid for optimal penalty
+      parameter determination (this also enhances the visualization)
+      \item New features updated \code{optPenalty.aLOOCV} function:
+        \itemize{
+          \item Function has been sped up by killing redundant inversion
+          \item now uses log-equidistant penalty grid for optimal penalty
+          parameter determination (this also enhances the visualization)
+      }
+      \item New features updated \code{Ugraph} function:
+        \itemize{
+          \item One can now also specify vertex placement by coordinate specification
+          \item Now outputs, for convenience, the vertex coordinates of the plotted graph
+      }
+      \item \code{ridgePathS} has been sped up by killing redundant inversion
+      \item The \code{covML} function has been amended with an argument that indicates if a correlation matrix
+      (instead of an ML estimate of a covariance matrix) is desired. This offers more flexibility. One can now get the
+      ML estimate of the covariance matrix, the ML estimate of the covariance matrix on standardized data, as well as
+      the correlation matrix
+      \item The \code{optPenalty.LOOCVauto} function has been amended with an argument that indicates if the
+      evaluation of the LOOCV score should be performed on the correlation scale
+      \item The \code{optPenalty.LOOCV} function has been amended with an argument that indicates if the
+      evaluation of the LOOCV score should be performed on the correlation scale
+      \item The \code{optPenalty.aLOOCV} function has been amended with an argument that indicates if the
+      evaluation of the approximate LOOCV score should be performed on the correlation scale
+    }
+  }
+}
+
+
 \section{Changes in version 2.0}{
   \subsection{Documentation:}{
     \itemize{

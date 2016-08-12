@@ -12,8 +12,8 @@
 ##             Amsterdam, the Netherlands
 ## Email:	     cf.peeters@vumc.nl
 ##
-## Version: 2.0
-## Last Update:	12/10/2015
+## Version: 2.1
+## Last Update:	10/08/2016
 ## Description:	Ridge estimation for high-dimensional precision matrices
 ##              Includes supporting functions for (integrative) graphical modeling
 ##
@@ -23,9 +23,9 @@
 ##             rags2ridges.cpp    >> C++ work horses
 ##
 ## Publications:
-##   [1] van Wieringen, W.N. & Peeters, C.F.W. (2015).
+##   [1] van Wieringen, W.N. & Peeters, C.F.W. (2016).
 ##       "Ridge Estimation of Inverse Covariance Matrices from High-Dimensional
-##       Data", arXiv:1403.0904v3 [stat.ME].
+##       Data", Computational Statistics & Data Analysis, vol 103: 284-303.
 ##   [2] van Wieringen, W.N. & Peeters, C.F.W. (2015).
 ##       "Application of a New Ridge Estimator of the Inverse Covariance Matrix
 ##       to the Reconstruction of Gene-Gene Interaction Networks", in: di Serio,
@@ -36,7 +36,7 @@
 ##       van Wieringen, W.N. (2015).
 ##       "Targeted Fused Ridge Estimation of Inverse Covariance Matrices from
 ##       Multiple High-Dimensional Data Classes", arXiv:1509.07982v1 [stat.ME].
-## 	 [4] Peeters, C.F.W., van de Wiel, M.A., & van Wieringen, W.N. (2015).
+## 	 [4] Peeters, C.F.W., van de Wiel, M.A., & van Wieringen, W.N. (2016).
 ##       "The Spectral Condition Number Plot for Regularization Parameter
 ##       Determination".
 ##
@@ -324,12 +324,15 @@
 
 
 
-.cvl <- function(lambda, Y,  target = default.target(covML(Y)), type = "Alt"){
+.cvl <- function(lambda, Y, cor = FALSE, target = default.target(covML(Y)),
+                 type = "Alt"){
   ##############################################################################
   # - Function that calculates a cross-validated negative log-likelihood score
   #   for single penalty value
   # - lambda > value penalty parameter
   # - Y      > (raw) Data matrix, variables in columns
+  # - cor    > logical indicating if evaluation of the LOOCV score should be
+  #            performed on the correlation matrix
   # - target > target (precision terms) for Type I estimators,
   #            default = default.target(covML(Y))
   # - type   > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
@@ -337,7 +340,7 @@
 
   slh <- numeric()
   for (i in 1:nrow(Y)){
-    S   <- covML(Y[-i, ])
+    S   <- covML(Y[-i, ], cor = cor)
     slh <- c(slh, .LL(t(Y[i, , drop = FALSE]) %*% Y[i, , drop = FALSE],
                       ridgeP(S, lambda, target = target, type = type)))
   }
@@ -461,10 +464,11 @@ adjacentMat <- function(M, diag = FALSE){
 
 
 
-covML <- function(Y){
+covML <- function(Y, cor = FALSE){
   ##############################################################################
   # - function that gives the maximum likelihood estimate of the covariance
   # - Y   > (raw) data matrix, assumed to have variables in columns
+  # - cor > logical indicating if the correlation matrix should be returned
   ##############################################################################
 
   # Dependencies
@@ -474,9 +478,19 @@ covML <- function(Y){
   if (!is.matrix(Y)){
     stop("Input (Y) should be a matrix")
   }
+  else if (class(cor) != "logical"){
+    stop("Input (cor) is of wrong class")
+  }
   else {
-    Ys  <- scale(Y, center = TRUE, scale = FALSE)
-    Sml <- crossprod(Ys)/nrow(Ys)  # (t(Ys) %*% Ys)/nrow(Ys)
+    if (cor){
+      Sml <- cor(Y)
+    }
+    else {
+      Ys  <- scale(Y, center = TRUE, scale = FALSE)
+      Sml <- crossprod(Ys)/nrow(Ys)  # (t(Ys) %*% Ys)/nrow(Ys)
+    }
+
+    # Return
     return(Sml)
   }
 }
@@ -506,11 +520,13 @@ covMLknown <- function(Y, covMat = NULL, corMat = NULL,
   #             when corType='equi'.
   #
   # NOTES:
-  # - Currently no dependencies. In the future chunks of code may be C-ed
-  #   through Rcpp.
   # - Future version should a.o. also allow a first order autoregressive
   #   correlation assumption.
   ##############################################################################
+
+  # Dependencies
+  # require("base")
+  # require("stats")
 
   # center data
   Ys <- scale(Y, center = TRUE, scale = FALSE)
@@ -1021,7 +1037,7 @@ ridgeP <- function(S, lambda, type = "Alt", target = default.target(S)){
 ##------------------------------------------------------------------------------
 
 optPenalty.LOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
-                             target = default.target(covML(Y)),
+                             cor = FALSE, target = default.target(covML(Y)),
                              output = "light", graph = TRUE, verbose = TRUE) {
   ##############################################################################
   # - Function that selects the optimal penalty parameter by leave-one-out
@@ -1032,6 +1048,8 @@ optPenalty.LOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
   # - step        > determines the coarseness in searching the grid
   #                 [lambdaMin, lambdaMax]
   # - type        > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
+  # - cor         > logical indicating if evaluation of the LOOCV score should be
+  #                 performed on the correlation matrix
   # - target      > target (precision terms) for Type I estimators,
   #                 default = default.target(covML(Y))
   # - output      > must be one of {"all", "light"}, default = "light"
@@ -1045,6 +1063,7 @@ optPenalty.LOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
   # require("base")
   # require("stats")
   # require("graphics")
+  # require("sfsmisc")
 
   if (class(verbose) != "logical"){
     stop("Input (verbose) is of wrong class")
@@ -1082,6 +1101,9 @@ optPenalty.LOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
   else if (step <= 0){
     stop("Input (step) should be a positive integer")
   }
+  else if (class(cor) != "logical"){
+    stop("Input (cor) is of wrong class")
+  }
   else if (!(output %in% c("all", "light"))){
     stop("Input (output) should be one of {'all', 'light'}")
   }
@@ -1091,7 +1113,7 @@ optPenalty.LOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
   else {
     # Set preliminaries
     LLs     <- numeric()
-    lambdas <- seq(lambdaMin, lambdaMax, len = step)
+    lambdas <- lseq(lambdaMin, lambdaMax, length = step)
 
     # Calculate CV scores
     if (verbose) {
@@ -1100,7 +1122,7 @@ optPenalty.LOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
     for (k in 1:length(lambdas)){
       slh <- numeric()
       for (i in 1:nrow(Y)){
-        S   <- covML(Y[-i,])
+        S   <- covML(Y[-i,], cor = cor)
         slh <- c(slh, .LL(t(Y[i,,drop = F]) %*% Y[i,,drop = F],
                           ridgeP(S, lambdas[k], type = type, target = target)))
       }
@@ -1120,6 +1142,7 @@ optPenalty.LOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
            main = Main)
       axis(2, ylim = c(min(LLs),max(LLs)), col = "black", lwd = 1)
       axis(1, col = "black", lwd = 1)
+      par(xpd = FALSE)
       abline(h = min(LLs), v = log(optLambda), col = "red")
       legend("topright",
              legend = c(paste("min. LOOCV neg. LL: ", round(min(LLs),3),sep=""),
@@ -1127,7 +1150,7 @@ optPenalty.LOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
     }
 
     # Return
-    S <- covML(Y)
+    S <- covML(Y, cor = cor)
     if (output == "all"){
       return(list(optLambda = optLambda,
                   optPrec = ridgeP(S, optLambda, type = type, target = target),
@@ -1143,7 +1166,7 @@ optPenalty.LOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
 
 
 optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
-                              target = default.target(covML(Y)),
+                              cor = FALSE, target = default.target(covML(Y)),
                               output = "light", graph = TRUE, verbose = TRUE) {
   ##############################################################################
   # - Function that selects the optimal penalty parameter by approximate
@@ -1154,6 +1177,8 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
   # - step        > determines the coarseness in searching the grid
   #                 [lambdaMin, lambdaMax]
   # - type        > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
+  # - cor         > logical indicating if evaluation of the LOOCV score should be
+  #                 performed on the correlation matrix
   # - target      > target (precision terms) for Type I estimators,
   #                 default = default.target(covML(Y))
   # - output      > must be one of {"all", "light"}, default = "light"
@@ -1166,6 +1191,7 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
   # Dependencies
   # require("base")
   # require("graphics")
+  # require("sfsmisc")
 
   if (class(verbose) != "logical"){
     stop("Input (verbose) is of wrong class")
@@ -1203,6 +1229,9 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
   else if (step <= 0){
     stop("Input (step) should be a positive integer")
   }
+  else if (class(cor) != "logical"){
+    stop("Input (cor) is of wrong class")
+  }
   else if (!(output %in% c("all", "light"))){
     stop("Input (output) should be one of {'all', 'light'}")
   }
@@ -1211,9 +1240,9 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
   }
   else {
     # Set preliminaries
-    S       <- covML(Y)
+    S       <- covML(Y, cor = cor)
     n       <- nrow(Y)
-    lambdas <- seq(lambdaMin, lambdaMax, len = step)
+    lambdas <- lseq(lambdaMin, lambdaMax, length = step)
     aLOOCVs <- numeric()
 
     # Calculate approximate LOOCV scores
@@ -1226,10 +1255,9 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
              "of the same dimension")
       } else {
         Spectral <- eigen(S, symmetric = TRUE)
-        Vinv     <- solve(Spectral$vectors)
         for (k in 1:length(lambdas)){
           Eigshrink <- .eigShrink(Spectral$values, lambdas[k])
-          P         <- t(Vinv) %*% diag(1/Eigshrink) %*% Vinv
+          P         <- Spectral$vectors %*% diag(1/Eigshrink) %*% t(Spectral$vectors)
           nLL       <- .5 * .LL(S, P)
           isum      <- numeric()
 
@@ -1243,7 +1271,7 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
         }
       }
     } else if (type == "Alt" & all(target[!diag(nrow(target))] == 0) &
-                 (length(unique(diag(target))) == 1)) {
+               (length(unique(diag(target))) == 1)) {
       if (!isSymmetric(target)){
         stop("Shrinkage target should be symmetric")
       } else if (dim(target)[1] != dim(S)[1]){
@@ -1254,10 +1282,9 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
       } else {
         varPhi   <- unique(diag(target))
         Spectral <- eigen(S, symmetric = TRUE)
-        Vinv     <- solve(Spectral$vectors)
         for (k in 1:length(lambdas)){
           Eigshrink <- .eigShrink(Spectral$values, lambdas[k], const = varPhi)
-          P         <- t(Vinv) %*% diag(1/Eigshrink) %*% Vinv
+          P         <- Spectral$vectors %*% diag(1/Eigshrink) %*% t(Spectral$vectors)
           nLL       <- .5 * .LL(S, P)
           isum      <- numeric()
 
@@ -1297,6 +1324,7 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
            ylab = "Approximate LOOCV neg. log-likelihood", main = Main)
       axis(2, ylim = c(min(aLOOCVs),max(aLOOCVs)), col = "black", lwd = 1)
       axis(1, col = "black", lwd = 1)
+      par(xpd = FALSE)
       abline(h = min(aLOOCVs), v = log(optLambda), col = "red")
       legend("topright",
              legend = c(paste("min. approx. LOOCV neg. LL: ",
@@ -1321,7 +1349,7 @@ optPenalty.aLOOCV <- function(Y, lambdaMin, lambdaMax, step, type = "Alt",
 
 optPenalty.LOOCVauto <- function (Y, lambdaMin, lambdaMax,
                                   lambdaInit = (lambdaMin + lambdaMax)/2,
-                                  target = default.target(covML(Y)),
+                                  cor = FALSE, target = default.target(covML(Y)),
                                   type = "Alt") {
   ##############################################################################
   # - Function that determines the optimal value of the penalty parameter by
@@ -1331,6 +1359,8 @@ optPenalty.LOOCVauto <- function (Y, lambdaMin, lambdaMax,
   # - lambdaMin  > minimum value penalty parameter (dependent on 'type')
   # - lambdaMax  > maximum value penalty parameter (dependent on 'type')
   # - lambdaInit > initial value for lambda for starting optimization
+  # - cor        > logical indicating if evaluation of the LOOCV score should be
+  #                performed on the correlation matrix
   # - target     > target (precision terms) for Type I estimators,
   #                default = default.target(covML(Y))
   # - type       > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
@@ -1377,15 +1407,18 @@ optPenalty.LOOCVauto <- function (Y, lambdaMin, lambdaMax,
   else if (lambdaMax <= lambdaInit){
     stop("Input (lambdaInit) must be smaller than input (lambdaMax)")
   }
+  else if (class(cor) != "logical"){
+    stop("Input (cor) is of wrong class")
+  }
   else {
     # determine optimal value of ridge penalty parameter
     optLambda <- optim(lambdaInit, .cvl, method = "Brent", lower = lambdaMin,
-                       upper = lambdaMax, Y = Y, target = target,
+                       upper = lambdaMax, Y = Y, cor = cor, target = target,
                        type = type)$par
 
     # Return
     return(list(optLambda = optLambda,
-                optPrec = ridgeP(covML(Y), optLambda,
+                optPrec = ridgeP(covML(Y, cor = cor), optLambda,
                                  type = type, target = target)))
   }
 }
@@ -1634,6 +1667,269 @@ conditionNumberPlot <- function(S, lambdaMin, lambdaMax, step, type = "Alt",
       } else {
         abline(v = log(value), col = "red")
       }
+    }
+
+    # Possible output
+    if (nOutput){
+      return(list(lambdas = lambdas, conditionNumbers = condNR))
+    }
+  }
+}
+
+
+
+CNplot <- function(S, lambdaMin, lambdaMax, step, type = "Alt",
+                   target = default.target(S), norm = "2",
+                   Iaids = FALSE, vertical = FALSE, value = 1e-100,
+                   main = "", nOutput = FALSE, verbose = TRUE){
+  #############################################################################
+  # - Function that visualizes the spectral condition number against the
+  #   regularization parameter
+  # - Can be used to heuristically determine the (minimal) value of the
+  #   penalty parameter
+  # - The ridge estimators operate by shrinking the eigenvalues
+  # - This is especially the case when targets are used that lead to
+  #   rotation equivariant estimators
+  # - Maximum shrinkage (under rotation equivariance) implies that all
+  #   eigenvalues will be equal
+  # - Ratio of maximum and minimum eigenvalue of P can then function
+  #   as a heuristic
+  # - It's point of stabilization can give an acceptable value for the penalty
+  # - The ratio boils down to the (spectral) condition number of a matrix
+  # - S         > sample covariance/correlation matrix
+  # - lambdaMin > minimum value penalty parameter (dependent on 'type')
+  # - lambdaMax > maximum value penalty parameter (dependent on 'type')
+  # - step      > determines the coarseness in searching the grid
+  #               [lambdaMin, lambdaMax]. The steps on the grid are equidistant
+  #               on the log scale
+  # - type      > must be one of {"Alt", "ArchI", "ArchII"}, default = "Alt"
+  # - target    > target (precision terms) for Type I estimators,
+  #               default = default.target(S)
+  # - norm      > indicates the norm under which the condition number is to be
+  #               estimated. Default is the L2-norm. The L1-norm can be (cheaply)
+  #               approximated
+  # - Iaids     > logical indicating if interpretational aids should also be
+  #               visualized. The aids are the approximate loss in digits of
+  #               accuracy and an approximation of the acceleration along the
+  #               curve. Default = FALSE
+  # - vertical  > optional argument for visualization vertical line in graph
+  #               output, default = FALSE. Can be used to indicate the value of,
+  #               e.g., the optimal penalty as indicated by some routine. Can
+  #               be used to assess if this optimal penalty will lead to a
+  #               well-conditioned estimate
+  # - value     > indicates constant on which to base vertical line when
+  #               vertical = TRUE. Default is a very small value
+  # - main      > logical indicating if plot should contain type of estimator
+  #               as main title
+  # - nOutput   > logical indicating if numeric output should be given
+  #               (lambdas and condition numbers)
+  # - verbose   > logical indicating if process information should be printed
+  #               on-screen
+  #############################################################################
+
+  # Dependencies
+  # require("base")
+  # require("graphics")
+  # require("Hmisc")
+  # require("sfsmisc")
+
+  if (class(verbose) != "logical"){
+    stop("Input (verbose) is of wrong class")
+  }
+  if (verbose){
+    cat("Perform input checks...", "\n")
+  }
+  if (!is.matrix(S)){
+    stop("S should be a matrix")
+  }
+  else if (!isSymmetric(S)){
+    stop("S should be a covariance matrix")
+  }
+  else if (class(lambdaMin) != "numeric"){
+    stop("Input (lambdaMin) is of wrong class")
+  }
+  else if (length(lambdaMin) != 1){
+    stop("lambdaMin must be a scalar")
+  }
+  else if (lambdaMin <= 0){
+    stop("lambdaMin must be positive")
+  }
+  else if (class(lambdaMax) != "numeric"){
+    stop("Input (lambdaMax) is of wrong class")
+  }
+  else if (length(lambdaMax) != 1){
+    stop("lambdaMax must be a scalar")
+  }
+  else if (lambdaMax <= lambdaMin){
+    stop("lambdaMax must be larger than lambdaMin")
+  }
+  else if (class(step) != "numeric"){
+    stop("Input (step) is of wrong class")
+  }
+  else if (!.is.int(step)){
+    stop("step should be integer")
+  }
+  else if (step <= 0){
+    stop("step should be a positive integer")
+  }
+  else if (!(type %in% c("Alt", "ArchI", "ArchII"))){
+    stop("type should be one of {'Alt', 'ArchI', 'ArchII'}")
+  }
+  else if (!isSymmetric(target)){
+    stop("Shrinkage target should be symmetric")
+  }
+  else if (dim(target)[1] != dim(S)[1]){
+    stop("S and target should be of the same dimension")
+  }
+  else if (type == "Alt" & !all(target == 0) &
+           any(eigen(target, symmetric = TRUE, only.values = TRUE)$values <= 0)){
+    stop("When target is not a null-matrix it should be p.d.")
+  }
+  else if (type == "ArchI" & lambdaMax > 1){
+    stop("lambda should be in (0,1] for this type of Ridge estimator")
+  }
+  else if (type == "ArchI" &
+           any(eigen(target, symmetric = TRUE, only.values = TRUE)$values <= 0)){
+    stop("Target should be p.d.")
+  }
+  else if (!(norm %in% c("2", "1"))){
+    stop("norm should be one of {'2', '1'}")
+  }
+  else if (class(Iaids) != "logical"){
+    stop("Input (Iaids) is of wrong class")
+  }
+  else if (class(vertical) != "logical"){
+    stop("Input (vertical) is of wrong class")
+  }
+  else if (vertical & (class(value) != "numeric")){
+    stop("Input (value) is of wrong class")
+  }
+  else if (vertical & (any(value <= 0))){
+    stop("Input (value) must be strictly positive")
+  }
+  else if (vertical & (length(value) != 1)){
+    stop("Input (value) must be a scalar")
+  }
+  else if (class(main) != "character"){
+    stop("Input (main) is of wrong class")
+  }
+  else if (class(nOutput) != "logical"){
+    stop("Input (nOutput) is of wrong class")
+  }
+  else {
+    # Set preliminaries
+    lambdas <- lseq(lambdaMin, lambdaMax, length = step)
+    condNR  <- numeric()
+
+    if (norm == "2"){
+      # Calculate spectral condition number ridge estimate on lambda grid
+      if (verbose){cat("Calculating spectral condition numbers...", "\n")}
+      if (type == "Alt" & all(target == 0)){
+        Spectral <- eigen(S, symmetric = TRUE, only.values = TRUE)$values
+        for (k in 1:length(lambdas)){
+          Eigshrink <- .armaEigShrink(Spectral, lambdas[k])
+          condNR[k] <- as.numeric(max(Eigshrink)/min(Eigshrink))
+        }
+      } else if (type == "Alt" & all(target[!diag(nrow(target))] == 0) &
+                 (length(unique(diag(target))) == 1)){
+        varPhi   <- unique(diag(target))
+        Spectral <- eigen(S, symmetric = TRUE, only.values = TRUE)$values
+        for (k in 1:length(lambdas)){
+          Eigshrink <- .armaEigShrink(Spectral, lambdas[k], cons = varPhi)
+          condNR[k] <- as.numeric(max(Eigshrink)/min(Eigshrink))
+        }
+      } else {
+        if (type == "Alt"){
+          for (k in 1:length(lambdas)){
+            Eigs      <- .armaEigShrinkAnyTarget(S, target = target, lambdas[k])
+            condNR[k] <- as.numeric(max(Eigs)/min(Eigs))
+          }
+        } else if (type == "ArchI" & all(target[!diag(nrow(target))] == 0) &
+                   (length(unique(diag(target))) == 1)){
+          varPhi   <- unique(diag(target))
+          Spectral <- eigen(S, symmetric = TRUE, only.values = TRUE)$values
+          for (k in 1:length(lambdas)){
+            Eigshrink <- .armaEigShrinkArchI(Spectral, lambdas[k], cons = varPhi)
+            condNR[k] <- as.numeric(max(Eigshrink)/min(Eigshrink))
+          }
+        } else {
+          if (type == "ArchI"){
+            for (k in 1:length(lambdas)){
+              P         <- .ridgeSi(S, lambdas[k], type = type, target = target)
+              Eigs      <- eigen(P, symmetric = TRUE, only.values = TRUE)$values
+              condNR[k] <- as.numeric(max(Eigs)/min(Eigs))
+            }
+          }
+          if (type == "ArchII"){
+            Spectral <- eigen(S, symmetric = TRUE, only.values = TRUE)$values
+            for (k in 1:length(lambdas)){
+              Eigs      <- Spectral + lambdas[k]
+              condNR[k] <- as.numeric(max(Eigs)/min(Eigs))
+            }
+          }
+        }
+      }
+    }
+
+    if (norm == "1"){
+      # Calculate approximation to condition number under 1-norm
+      if (verbose){cat("Approximating condition number under 1-norm...", "\n")}
+      if (type == "Alt"){
+        for (k in 1:length(lambdas)){
+          P         <- .armaRidgeP(S, target = target, lambdas[k])
+          condNR[k] <- as.numeric(1/rcond(P, norm = "O"))
+        }
+      }
+      if (type != "Alt"){
+        for (k in 1:length(lambdas)){
+          P         <- .ridgeSi(S, lambdas[k], type = type, target = target)
+          condNR[k] <- as.numeric(1/rcond(P, norm = "O"))
+        }
+      }
+    }
+
+    if (Iaids) {
+      # Make calculations for interpretational aids
+      if (verbose){cat("Calculating interpretational aids...", "\n")}
+      dLoss   <- floor(log10(condNR))
+      logLamb <- log(lambdas)
+      delta   <- logLamb[2] - logLamb[1]
+      which   <- c(1, length(condNR))
+      Core    <- condNR[-which]
+      up      <- condNR[-c(which[2]-1, which[2])]
+      down    <- condNR[-c(which[1], which[1]+1)]
+      cdapp   <- (down - (2 * Core) + up)/(delta^2)
+    }
+
+    # Visualization
+    if (verbose){cat("Plotting...", "\n")}
+    if (norm == "2"){Ylab = "spectral condition number"}
+    if (norm == "1"){Ylab = "condition number under 1-norm"}
+    if (Iaids){par(mfrow=c(1,3))}
+    plot(log(lambdas), type = "l", condNR, axes = FALSE, col = "blue4",
+         xlab = "ln(penalty value)", ylab = Ylab, main = main)
+    axis(2, ylim = c(0,max(condNR)), col = "black", lwd = 1)
+    axis(1, col = "black", lwd = 1)
+    minor.tick(nx = 10, ny = 0, tick.ratio = .4)
+    if (vertical){abline(v = log(value), col = "red")}
+    par(xpd = FALSE)
+    if (Iaids){
+      plot(log(lambdas), dLoss, axes = FALSE, type = "l",
+           col = "green3", xlab = "ln(penalty value)",
+           ylab = "approximate loss in digits of accuracy")
+      axis(2, ylim = c(0,max(dLoss)), col = "black", lwd = 1)
+      axis(1, col = "black", lwd = 1)
+      minor.tick(nx = 10, ny = 0, tick.ratio = .4)
+      if (vertical){abline(v = log(value), col = "red")}
+      xlimits <- range(log(lambdas))
+      plot(log(lambdas[-which]), cdapp, axes = FALSE, type = "l",
+           col = "orange", xlim = xlimits, xlab = "ln(penalty value)",
+           ylab = "approximation of acceleration")
+      axis(2, ylim = c(0,max(cdapp)), col = "black", lwd = 1)
+      axis(1, col = "black", lwd = 1)
+      minor.tick(nx = 10, ny = 0, tick.ratio = .4)
+      if (vertical){abline(v = log(value), col = "red")}
+      par(mfrow=c(1,1))
     }
 
     # Possible output
@@ -2579,10 +2875,9 @@ ridgePathS <- function (S, lambdaMin, lambdaMax, step, type = "Alt",
         stop("Inputs ('S' and 'target') should be of the same dimension")
       } else {
         Spectral <- eigen(S, symmetric = TRUE)
-        Vinv     <- solve(Spectral$vectors)
         for (k in 1:length(lambdas)){
           Eigshrink <- .eigShrink(Spectral$values, lambdas[k])
-          P         <- t(Vinv) %*% diag(1/Eigshrink) %*% Vinv
+          P         <- Spectral$vectors %*% diag(1/Eigshrink) %*% t(Spectral$vectors)
           if (plotType=="pcor"){
             YforPlot <- cbind(YforPlot, pcor(symm(P))[upper.tri(P)])
           }
@@ -2606,15 +2901,14 @@ ridgePathS <- function (S, lambdaMin, lambdaMax, step, type = "Alt",
         stop("Input (target) should be symmetric")
       } else if (dim(target)[1] != dim(S)[1]){
         stop("Inputs ('S' and 'target') should be of the same dimension")
-      } else if (any(diag(target) <= 0)){  ## THIS TEST IS NOT CORRECT I GUESS?
+      } else if (any(diag(target) <= 0)){
         stop("Input (target) should be p.d.")
       } else {
         varPhi   <- unique(diag(target))
         Spectral <- eigen(S, symmetric = TRUE)
-        Vinv     <- solve(Spectral$vectors)
         for (k in 1:length(lambdas)){
           Eigshrink <- .eigShrink(Spectral$values, lambdas[k], const = varPhi)
-          P         <- t(Vinv) %*% diag(1/Eigshrink) %*% Vinv
+          P         <- Spectral$vectors %*% diag(1/Eigshrink) %*% t(Spectral$vectors)
           if (plotType=="pcor"){
             YforPlot <- cbind(YforPlot, pcor(symm(P))[upper.tri(P)])
           }
@@ -2760,8 +3054,8 @@ edgeHeat <- function(M, lowColor = "blue", highColor = "red", textsize = 10,
                              high = highColor, midpoint = 0) +
         theme(axis.ticks = element_blank()) +
         theme(axis.text.y = element_text(size = textsize)) +
-        theme(axis.text.x =
-                element_text(angle = -90, vjust = .5, size = textsize)) +
+        theme(axis.text.x = element_text(angle = -90, vjust = .5,
+                                         hjust = 0, size = textsize)) +
         xlab(" ") + ylab(" ") +
         ylim(rev(levels(Mmelt$X1))) +
         ggtitle(main)
@@ -2771,8 +3065,8 @@ edgeHeat <- function(M, lowColor = "blue", highColor = "red", textsize = 10,
                              high = highColor, midpoint = 0) +
         theme(axis.ticks = element_blank()) +
         theme(axis.text.y = element_text(size = textsize)) +
-        theme(axis.text.x =
-                element_text(angle = -90, vjust = .5, size = textsize)) +
+        theme(axis.text.x = element_text(angle = -90, vjust = .5,
+                                         hjust = 0, size = textsize)) +
         xlab(" ") + ylab(" ") +
         ylim(rev(levels(Mmelt$X1))) +
         ggtitle(main) +
@@ -2784,8 +3078,8 @@ edgeHeat <- function(M, lowColor = "blue", highColor = "red", textsize = 10,
 
 
 Ugraph <- function(M, type = c("plain", "fancy", "weighted"),
-                   lay = layout.circle, Vsize = 15, Vcex = 1,
-                   Vcolor = "orangered", VBcolor = "darkred",
+                   lay = "layout_in_circle", coords = NULL, Vsize = 15,
+                   Vcex = 1, Vcolor = "orangered", VBcolor = "darkred",
                    VLcolor = "black", prune = FALSE, legend = FALSE,
                    label = "", Lcex = 1.3, PTcex = 4, cut = .5,
                    scale = 10, pEcolor = "black", nEcolor = "grey",
@@ -2803,8 +3097,15 @@ Ugraph <- function(M, type = c("plain", "fancy", "weighted"),
   #             indicates the strenght of the partial correlations. Grey lines
   #             then indicate negative partial correlations while black lines
   #             represent positive partial correlations.
-  # - lay     > determines layout of the graph. All layouts in 'layout{igraph}'
-  #             are accepted. Default = layout.circle, giving circular layout.
+  # - lay     > determines layout of the graph. Most layouts in 'layout{igraph}'
+  #             are accepted. Default = layout_in_circle.
+  # - coords  > matrix of coordinates to determine layout of the graph.
+  #             The row dimension should equal the number of (pruned) vertices.
+  #             The column dimension should equal 2 (for 2D layouts) or
+  #             3 (for 3D layouts). Enables one, e.g., to layout the graph
+  #             according to the coordinates of a previous call to Ugraph.
+  #             If both the the lay and the coords arguments are not NULL,
+  #             the lay argument takes precedence
   # - Vsize   > gives vertex size, default = 15
   # - Vcex    > gives size vertex labels, default = 1
   # - Vcolor  > gives vertex color, default = "orangered"
@@ -2842,6 +3143,30 @@ Ugraph <- function(M, type = c("plain", "fancy", "weighted"),
   }
   else if (!(type %in% c("plain", "fancy", "weighted"))){
     stop("type should be one of {'plain', 'fancy', 'weighted'}")
+  }
+  else if (!((length(intersect(lay,c("layout_as_star", "layout_as_tree",
+                                     "layout_in_circle", "layout_nicely",
+                                     "layout_with_dh", "layout_with_gem",
+                                     "layout_with_graphopt", "layout_on_grid",
+                                     "layout_with_mds", "layout_components",
+                                     "layout_on_sphere", "layout_randomly",
+                                     "layout_with_fr", "layout_with_kk",
+                                     "layout_with_lgl"))) > 0) | is.null(lay))){
+    stop("lay should be 'NULL' or one of
+         {'layout_as_star', 'layout_as_tree',
+         'layout_in_circle', 'layout_nicely',
+         'layout_with_dh', 'layout_with_gem',
+         'layout_with_graphopt', 'layout_on_grid',
+         'layout_with_mds', 'layout_components',
+         'layout_on_sphere', 'layout_randomly',
+         'layout_with_fr', 'layout_with_kk',
+         'layout_with_lgl'}")
+  }
+  else if (!is.null(coords) & class(coords) != "matrix"){
+    stop("Input (coords) is of wrong class")
+  }
+  else if (is.null(lay) & is.null(coords)){
+    stop("Input (lay) and input (coords) cannot be both NULL")
   }
   else if (class(Vsize) != "numeric"){
     stop("Input (Vsize) is of wrong class")
@@ -2894,9 +3219,52 @@ Ugraph <- function(M, type = c("plain", "fancy", "weighted"),
     GA <- graph.adjacency(AM, mode = "undirected")
     if (prune){GA <- delete.vertices(GA, which(degree(GA) < 1))}
 
+    # Layout specification
+    if(is.null(lay)){
+      if(dim(coords)[1] != length(V(GA))){
+        stop("Row dimension of input (coords) does not match the
+             number of vertices to be plotted")
+      } else if (dim(coords)[2] > 3){
+        stop("Column dimension of input (coords) exceeds the number
+             of dimensions that can be visualized")
+      } else {lays = coords}
+      }
+    else{
+      if(lay == "layout_as_star"){
+        lays = igraph::layout_as_star(GA)}
+      if(lay == "layout_as_tree")
+      {lays = igraph::layout_as_tree(GA)}
+      if(lay == "layout_in_circle"){
+        lays = igraph::layout_in_circle(GA)}
+      if(lay == "layout_nicely"){
+        lays = igraph::layout_nicely(GA)}
+      if(lay == "layout_with_dh"){
+        lays = igraph::layout_with_dh(GA)}
+      if(lay == "layout_with_gem"){
+        lays = igraph::layout_with_gem(GA)}
+      if(lay == "layout_with_graphopt"){
+        lays = igraph::layout_with_graphopt(GA)}
+      if(lay == "layout_on_grid"){
+        lays = igraph::layout_on_grid(GA)}
+      if(lay == "layout_with_mds"){
+        lays = igraph::layout_with_mds(GA)}
+      if(lay == "layout_components"){
+        lays = igraph::layout_components(GA)}
+      if(lay == "layout_on_sphere"){
+        lays = igraph::layout_on_sphere(GA)}
+      if(lay == "layout_randomly"){
+        lays = igraph::layout_randomly(GA)}
+      if(lay == "layout_with_fr"){
+        lays = igraph::layout_with_fr(GA)}
+      if(lay == "layout_with_kk"){
+        lays = igraph::layout_with_kk(GA)}
+      if(lay == "layout_with_lgl"){
+        lays = igraph::layout_with_lgl(GA)}
+    }
+
     # Plain graph
     if (type == "plain"){
-      plot(GA, layout = lay, vertex.size = Vsize, vertex.label.family = "sans",
+      plot(GA, layout = lays, vertex.size = Vsize, vertex.label.family = "sans",
            vertex.label.cex = Vcex, vertex.color = Vcolor,
            vertex.frame.color = VBcolor,
            vertex.label.color = VLcolor, main = main)
@@ -2921,7 +3289,7 @@ Ugraph <- function(M, type = c("plain", "fancy", "weighted"),
         E(GA)[E(GA)$weight < 0]$style <- "dashed"
         E(GA)[E(GA)$weight > 0]$style <- "solid"
         E(GA)[abs(E(GA)$weight) > cut]$color <- "black"
-        plot(GA, layout = lay, vertex.size = Vsize,
+        plot(GA, layout = lays, vertex.size = Vsize,
              vertex.label.family = "sans", vertex.label.cex = Vcex,
              vertex.color = Vcolor, vertex.frame.color = VBcolor,
              vertex.label.color = VLcolor,
@@ -2954,7 +3322,7 @@ Ugraph <- function(M, type = c("plain", "fancy", "weighted"),
         E(GA)$weight <- Mmelt$value
         E(GA)[E(GA)$weight < 0]$color <- nEcolor
         E(GA)[E(GA)$weight > 0]$color <- pEcolor
-        plot(GA, layout = lay, vertex.size = Vsize,
+        plot(GA, layout = lays, vertex.size = Vsize,
              vertex.label.family = "sans", vertex.label.cex = Vcex,
              vertex.color = Vcolor, vertex.frame.color = VBcolor,
              vertex.label.color = VLcolor,
@@ -2986,7 +3354,10 @@ Ugraph <- function(M, type = c("plain", "fancy", "weighted"),
                cex = Lcex, pt.cex = PTcex)
       }
     }
-  }
+
+    # Return
+    return(coordinates <- lays)
+    }
 }
 
 
@@ -3644,5 +4015,6 @@ fullMontyS <- function(Y, lambdaMin, lambdaMax,
 ################################################################################
 
 # In development
+
 
 

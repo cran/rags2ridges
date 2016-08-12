@@ -159,7 +159,7 @@ arma::vec armaEigShrink(const arma::vec dVec,
                         const double lambda,
                         const double cons = 0) {
   /* ---------------------------------------------------------------------------
-   - Function that shrinks the eigenvalues in an eigenvector
+   - Function that shrinks the eigenvalues
    - Shrinkage is that of the rotation equivariant alternative ridge estimator
    - Main use is in avoiding expensive matrix square root when choosing a
      target that leads to a rotation equivariant version of the alternative
@@ -171,6 +171,48 @@ arma::vec armaEigShrink(const arma::vec dVec,
 
   arma::vec Evector = 0.5 * (dVec - lambda * cons);
   return sqrt(lambda + pow(Evector, 2.0)) + Evector;
+}
+
+
+
+// [[Rcpp::export(.armaEigShrinkAnyTarget)]]
+arma::vec armaEigShrinkAnyTarget(const arma::mat & S,
+                                 const arma::mat & target,
+                                 const double lambda) {
+  /* ---------------------------------------------------------------------------
+  - Function that shrinks the eigenvalues
+  - Shrinkage is that of the alternative ridge estimator under a general target
+  - Main use is in avoiding expensive Schur-approach to computing the
+    matrix square root
+  - S      > A sample covariance matrix
+  - target > Target matrix of same dimensions as S
+  - lambda > penalty parameter
+  --------------------------------------------------------------------------- */
+
+  arma::vec eigvals;
+  arma::mat eigvecs = S - lambda * target;
+  eig_sym(eigvals, eigvecs, eigvecs, "dc");
+  eigvals = 0.5 * eigvals;
+  arma::vec sqroot = sqrt(lambda + pow(eigvals, 2.0));
+  return (sqroot + eigvals);
+}
+
+
+
+// [[Rcpp::export(.armaEigShrinkArchI)]]
+arma::vec armaEigShrinkArchI(const arma::vec dVec,
+                             const double lambda,
+                             const double cons) {
+  /* ---------------------------------------------------------------------------
+   - Function that shrinks the eigenvalues
+   - Shrinkage is that of the rotation equivariant Archetypal I estimator
+   - dVec   > numeric vector containing the eigenvalues of a matrix S
+   - lambda > penalty parameter
+   - const  > a constant
+   --------------------------------------------------------------------------- */
+
+  arma::vec Evector = (1 - lambda) * dVec + (lambda * (1.0/cons));
+  return Evector;
 }
 
 
@@ -266,7 +308,7 @@ arma::mat armaRidgePScalarTarget(const arma::mat & S,
    - alpha  > The scaling of the identity matrix. Shoud not contain NaNs, Infs,
               or NA.s
    - lambda > The ridge penalty. Can be set to Inf (on the R side)
-   - invert > Should the estimate be compute using inversion?
+   - invert > Should the estimate be computed using inversion?
               0 = "no", 1 = "yes", 2 = "automatic", (default).
   --------------------------------------------------------------------------- */
 
@@ -303,7 +345,7 @@ arma::mat armaRidgePScalarTarget(const arma::mat & S,
     return rev_eig(D_inv, eigvecs);  // Proper inversion
   } else {
     arma::vec D_noinv = (sqroot - eigvals)/lambda; // inversion-less diagonal
-    return rev_eig(D_noinv, eigvecs);  // Inversion by proposion
+    return rev_eig(D_noinv, eigvecs);  // Inversion by proposition
   }
 
 }

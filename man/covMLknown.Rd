@@ -8,7 +8,7 @@ Function that performs maximum likelihood estimation of the covariance matrix, w
 }
 \usage{
 covMLknown(Y, covMat = NULL, corMat = NULL, corType = "none",
-varType = "none", nInit = 100)
+           varType = "none", nInit = 100)
 }
 \arguments{
   \item{Y}{
@@ -29,7 +29,7 @@ varType = "none", nInit = 100)
   \code{"common"} (variates have equal marginal variances).
   }
   \item{nInit}{
-  An \code{integer} specifycing the maximum number of iterations for likelihood maximization when \code{corType="equi"}   .
+  An \code{integer} specifying the maximum number of iterations for likelihood maximization when \code{corType="equi"}   .
   }
 }
 \details{

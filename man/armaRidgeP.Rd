@@ -83,14 +83,14 @@ They perform core computations for many other functions.
   \code{S}.
 }
 \references{
-  van Wieringen, W.N. & Peeters, C.F.W. (2015).
+  van Wieringen, W.N. & Peeters, C.F.W. (2016).
   Ridge Estimation of Inverse Covariance Matrices from High-Dimensional Data,
-  arXiv:1403.0904v3 [stat.ME].
+  Computational Statistics & Data Analysis, vol. 103: 284-303.
+  Also available as arXiv:1403.0904v3 [stat.ME].
 }
 \author{
   Anders Ellern Bilgrau,
-  Carel F.W. Peeters <cf.peeters@vumc.nl>,
-  Wessel N. van Wieringen
+  Carel F.W. Peeters <cf.peeters@vumc.nl>
 }
 \section{Warning}{
   The functions themselves perform no checks on the input. Correct input should

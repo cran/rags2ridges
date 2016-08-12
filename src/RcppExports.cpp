@@ -99,6 +99,32 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
+// armaEigShrinkAnyTarget
+arma::vec armaEigShrinkAnyTarget(const arma::mat& S, const arma::mat& target, const double lambda);
+RcppExport SEXP rags2ridges_armaEigShrinkAnyTarget(SEXP SSEXP, SEXP targetSEXP, SEXP lambdaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const arma::mat& >::type S(SSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type target(targetSEXP);
+    Rcpp::traits::input_parameter< const double >::type lambda(lambdaSEXP);
+    __result = Rcpp::wrap(armaEigShrinkAnyTarget(S, target, lambda));
+    return __result;
+END_RCPP
+}
+// armaEigShrinkArchI
+arma::vec armaEigShrinkArchI(const arma::vec dVec, const double lambda, const double cons);
+RcppExport SEXP rags2ridges_armaEigShrinkArchI(SEXP dVecSEXP, SEXP lambdaSEXP, SEXP consSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const arma::vec >::type dVec(dVecSEXP);
+    Rcpp::traits::input_parameter< const double >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< const double >::type cons(consSEXP);
+    __result = Rcpp::wrap(armaEigShrinkArchI(dVec, lambda, cons));
+    return __result;
+END_RCPP
+}
 // armaRidgePAnyTarget
 arma::mat armaRidgePAnyTarget(const arma::mat& S, const arma::mat& target, const double lambda, int invert);
 RcppExport SEXP rags2ridges_armaRidgePAnyTarget(SEXP SSEXP, SEXP targetSEXP, SEXP lambdaSEXP, SEXP invertSEXP) {
