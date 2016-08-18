@@ -2,7 +2,7 @@ Package: rags2ridges
 Type: Package
 Title: Ridge Estimation of Precision Matrices from High-Dimensional
         Data
-Version: 2.1
+Version: 2.1.1
 Maintainer: Carel F.W. Peeters <cf.peeters@vumc.nl>
 Author: Carel F.W. Peeters [cre, aut], Anders Ellern Bilgrau [aut], Wessel N. van Wieringen [aut]
 Description: Proper L2-penalized ML estimators for the
@@ -17,6 +17,6 @@ License: GPL (>= 2)
 URL: http://www.bigstatistics.nl/carel-fw-peeters
 Suggests: KEGGgraph, graph, testthat
 NeedsCompilation: yes
-Packaged: 2016-08-12 09:22:00 UTC; cf.peeters
+Packaged: 2016-08-18 12:30:50 UTC; cf.peeters
 Repository: CRAN
-Date/Publication: 2016-08-12 12:53:05
+Date/Publication: 2016-08-18 16:31:38

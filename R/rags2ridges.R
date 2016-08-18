@@ -12,8 +12,8 @@
 ##             Amsterdam, the Netherlands
 ## Email:	     cf.peeters@vumc.nl
 ##
-## Version: 2.1
-## Last Update:	10/08/2016
+## Version: 2.1.1
+## Last Update:	18/08/2016
 ## Description:	Ridge estimation for high-dimensional precision matrices
 ##              Includes supporting functions for (integrative) graphical modeling
 ##
@@ -38,7 +38,7 @@
 ##       Multiple High-Dimensional Data Classes", arXiv:1509.07982v1 [stat.ME].
 ## 	 [4] Peeters, C.F.W., van de Wiel, M.A., & van Wieringen, W.N. (2016).
 ##       "The Spectral Condition Number Plot for Regularization Parameter
-##       Determination".
+##       Determination", arXiv:1608.04123v1 [stat.CO].
 ##
 ################################################################################
 ################################################################################
@@ -2282,18 +2282,20 @@ GGMmutualInfo <- function(S, split1){
 ##
 ##------------------------------------------------------------------------------
 
-sparsify <- function(P, threshold = c("absValue", "localFDR", "top"),
-                     absValueCut = .25, FDRcut = .9,
-                     top = 10, output = "heavy", verbose = TRUE){
+sparsify <- function(P, threshold = c("absValue", "connected", "localFDR", "top"),
+                     absValueCut = .25, FDRcut = .9, top = 10,
+                     output = "heavy", verbose = TRUE){
   ##############################################################################
   # - Function that sparsifies/determines support of a partial correlation
   #   matrix
-  # - Support can be determined by absolute value thresholding or by local FDRs
+  # - Support can be determined by absolute value thresholding or by local FDR
   #   thresholding
-  # - One can also choose to threshold based on the top X of absolute partial
-  #   correlations
   # - Local FDR operates on the nonredundant non-diagonal elements of a partial
   #   correlation matrix
+  # - One can also choose to threshold based on the top X of absolute partial
+  #   correlations
+  # - One can also choose to threshold based on the minimum absolute partial
+  #   correlation for which the resulting graph is connected
   # - Function is to some extent a wrapper around certain 'fdrtool' functions
   # - P           > (possibly shrunken) precision matrix
   # - threshold   > signifies type of thresholding
@@ -2331,6 +2333,7 @@ sparsify <- function(P, threshold = c("absValue", "localFDR", "top"),
   # require("base")
   # require("stats")
   # require("fdrtool")
+  # require("igraph")
 
   if (!is.matrix(P)){
     stop("Input (P) should be a matrix")
@@ -2343,10 +2346,11 @@ sparsify <- function(P, threshold = c("absValue", "localFDR", "top"),
   }
   else if (missing(threshold)){
     stop("Need to specify type of sparsification ('absValue' or 'localFDR' ",
-         "or 'top')")
+         "or 'connected' or 'top')")
   }
-  else if (!(threshold %in% c("absValue", "localFDR", "top"))){
-    stop("Input (threshold) should be one of {'absValue', 'localFDR', 'top'}")
+  else if (!(threshold %in% c("absValue", "connected", "localFDR", "top"))){
+    stop("Input (threshold) should be one of
+         {'absValue', 'connected', 'localFDR', 'top'}")
   }
   else if (!(output %in% c("light", "heavy"))){
     stop("Input (output) should be one of {'light', 'heavy'}")
@@ -2358,7 +2362,7 @@ sparsify <- function(P, threshold = c("absValue", "localFDR", "top"),
       PC  <- P
     } else {
       stan = FALSE
-      PC  <- symm(pcor(P))
+      PC  <- pcor(P)
     }
 
     # Number of nonredundant elements
@@ -2382,6 +2386,25 @@ sparsify <- function(P, threshold = c("absValue", "localFDR", "top"),
                             decreasing = TRUE)[ceiling(top)]
         threshold   <- "absValue"
       }
+    }
+
+    if (threshold == "connected"){
+      sumPC <- summary(abs(PC[upper.tri(PC)]))
+      maxPC <- as.numeric(sumPC[6]); minPC <- as.numeric(sumPC[1])
+      for (j in 1:100){
+        absValueCut <- (maxPC + minPC)/2
+        PC0 <- PC
+        PC0[!(abs(PC0) >= absValueCut)] <- 0
+        if (igraph::is.connected(graph.adjacency(adjacentMat(PC0), "undirected"))){
+          minPC <- absValueCut
+        } else {
+          maxPC <- absValueCut
+        }
+        if (abs(absValueCut - (maxPC + minPC)/2) < 10^(-10)){
+          absValueCut <- minPC; break
+        }
+      }
+      threshold   <- "absValue"
     }
 
     if (threshold == "absValue"){
