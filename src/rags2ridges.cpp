@@ -6,6 +6,7 @@
 //using namespace RcppArmadillo;
 //using namespace arma;
 
+// [[Rcpp::interfaces(r, cpp)]]
 
 ////////////////////////////////////////////////////////////////////////////////
 /* -----------------------------------------------------------------------------
@@ -810,4 +811,9 @@ arma::cube armaRInvWishart(const int n,
 getwd()
 source("./../../fnorm.R")
 */
+
+
+// pull in other functions
+#include "ridgePchordal.h"
+
 

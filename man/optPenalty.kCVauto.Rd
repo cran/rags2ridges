@@ -1,19 +1,18 @@
-\name{optPenalty.LOOCVauto}
-\alias{optPenalty.LOOCVauto}
+\name{optPenalty.kCVauto}
+\alias{optPenalty.kCVauto}
 \title{
 Automatic search for optimal penalty parameter
 }
 \description{
-This function is now deprecated. Please use \code{optPenalty.kCVauto} instead.
-
 Function that performs an 'automatic' search for the optimal penalty parameter for the \code{\link{ridgeP}}
 call by employing Brent's method to the calculation of a cross-validated negative log-likelihood score.
 }
 \usage{
-optPenalty.LOOCVauto(Y, lambdaMin, lambdaMax,
-                     lambdaInit = (lambdaMin + lambdaMax)/2,
-                     cor = FALSE, target = default.target(covML(Y)),
-                     type = "Alt")
+optPenalty.kCVauto(Y, lambdaMin, lambdaMax,
+                   lambdaInit = (lambdaMin + lambdaMax)/2,
+                   fold = nrow(Y), cor = FALSE,
+                   target = default.target(covML(Y)),
+                   type = "Alt")
 }
 \arguments{
   \item{Y}{
@@ -28,6 +27,9 @@ A \code{numeric} giving the maximum value for the penalty parameter.
   \item{lambdaInit}{
 A \code{numeric} giving the initial (starting) value for the penalty parameter.
 }
+  \item{fold}{
+A \code{numeric} or \code{integer} specifying the number of folds to apply in the cross-validation.
+}
   \item{cor}{
 A \code{logical} indicating if the evaluation of the LOOCV score should be performed on the correlation scale.
 }
@@ -40,10 +42,10 @@ A \code{character} indicating the type of ridge estimator to be used. Must be on
 }
 \details{
 The function determines the optimal value of the penalty parameter by application of the Brent algorithm (1971) to the
-(leave-one-out) cross-validated negative log-likelihood score (using a regularized ridge estimator for the precision matrix).
+\eqn{K}-fold cross-validated negative log-likelihood score (using a regularized ridge estimator for the precision matrix).
 The search for the optimal value is automatic in the sense that in order to invoke the root-finding abilities of the Brent method,
 only a minimum value and a maximum value for the penalty parameter need to be specified as well as a starting penalty value.
-The value at which the (leave-one-out) cross-validated negative log-likelihood score is minimized is deemed optimal.
+The value at which the \eqn{K}-fold cross-validated negative log-likelihood score is minimized is deemed optimal.
 The function employs the Brent algorithm as implemented in the
 \href{https://stat.ethz.ch/R-manual/R-devel/library/stats/html/optim.html}{optim} function.
 }
@@ -60,13 +62,15 @@ Wessel N. van Wieringen, Carel F.W. Peeters <cf.peeters@vumc.nl>
 }
 \note{
 When \code{cor = TRUE} correlation matrices are used in the computation of the (cross-validated) negative
-log-likelihood score, i.e., the leave-one-out sample covariance matrix is a matrix on the correlation scale.
+log-likelihood score, i.e., the \eqn{K}-fold sample covariance matrix is a matrix on the correlation scale.
 When performing evaluation on the correlation scale the data are assumed to be standardized.
 If \code{cor = TRUE} and one wishes to used the default target specification one may consider using \code{target = default.target(covML(Y, cor = TRUE))}. This gives a default target under the assumption of standardized data.
+
+Under the default setting of the fold-argument, \code{fold = nrow(Y)}, one performes leave-one-out cross-validation.
 }
 \seealso{
 \code{\link{GGMblockNullPenalty}}, \code{\link{GGMblockTest}}, \code{\link{ridgeP}}, \code{\link{optPenalty.aLOOCV}},
-\code{\link{optPenalty.LOOCV}}, \cr
+\code{\link{optPenalty.kCV}}, \cr
 \code{\link{default.target}}, \code{\link{covML}}
 }
 \examples{
@@ -77,15 +81,20 @@ set.seed(333)
 X = matrix(rnorm(n*p), nrow = n, ncol = p)
 colnames(X)[1:25] = letters[1:25]
 
-## Obtain regularized precision under optimal penalty
-OPT <- optPenalty.LOOCVauto(X, lambdaMin = .001, lambdaMax = 30); OPT
+## Obtain regularized precision under optimal penalty using K = n
+OPT <- optPenalty.kCVauto(X, lambdaMin = .001, lambdaMax = 30); OPT
 OPT$optLambda # Optimal penalty
 OPT$optPrec   # Regularized precision under optimal penalty
 
 ## Another example with standardized data
 X <- scale(X, center = TRUE, scale = TRUE)
-OPT <- optPenalty.LOOCVauto(X, lambdaMin = .001, lambdaMax = 30, cor = TRUE,
-                            target = default.target(covML(X, cor = TRUE))); OPT
+OPT <- optPenalty.kCVauto(X, lambdaMin = .001, lambdaMax = 30, cor = TRUE,
+                          target = default.target(covML(X, cor = TRUE))); OPT
+OPT$optLambda # Optimal penalty
+OPT$optPrec   # Regularized precision under optimal penalty
+
+## Another example using K = 5
+OPT <- optPenalty.kCVauto(X, lambdaMin = .001, lambdaMax = 30, fold = 5); OPT
 OPT$optLambda # Optimal penalty
 OPT$optPrec   # Regularized precision under optimal penalty
 }

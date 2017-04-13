@@ -32,10 +32,10 @@ Function overview \emph{core module}:
 	}
 \item Functions for penalty parameter selection
 	\itemize{
-	\item \code{\link{conditionNumberPlot}}
+	\item \code{\link{CNplot}}
 	\item \code{\link{optPenalty.aLOOCV}}
-	\item \code{\link{optPenalty.LOOCV}}
-	\item \code{\link{optPenalty.LOOCVauto}}
+	\item \code{\link{optPenalty.kCV}}
+	\item \code{\link{optPenalty.kCVauto}}
 	}
 \item Functions for loss/entropy/fit evaluation
 	\itemize{

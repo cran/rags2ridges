@@ -1,19 +1,18 @@
-\name{optPenalty.LOOCV}
-\alias{optPenalty.LOOCV}
+\name{optPenalty.kCV}
+\alias{optPenalty.kCV}
 \title{
-Select optimal penalty parameter by leave-one-out cross-validation
+Select optimal penalty parameter by \eqn{K}-fold cross-validation
 }
 \description{
-This function is now deprecated. Please use \code{optPenalty.kCV} instead.
-
 Function that selects the optimal penalty parameter for the \code{\link{ridgeP}} call
-by usage of leave-one-out cross-validation.
+by usage of \eqn{K}-fold cross-validation.
 Its output includes (a.o.) the precision matrix under the optimal value of the penalty parameter.
 }
 \usage{
-optPenalty.LOOCV(Y, lambdaMin, lambdaMax, step, type = "Alt",
-                 cor = FALSE, target = default.target(covML(Y)),
-                 output = "light", graph = TRUE, verbose = TRUE)
+optPenalty.kCV(Y, lambdaMin, lambdaMax, step, fold = nrow(Y),
+               cor = FALSE, target = default.target(covML(Y)),
+               type = "Alt", output = "light", graph = TRUE,
+               verbose = TRUE)
 }
 \arguments{
   \item{Y}{
@@ -28,14 +27,17 @@ A \code{numeric} giving the maximum value for the penalty parameter.
   \item{step}{
 An \code{integer} determining the number of steps in moving through the grid [\code{lambdaMin}, \code{lambdaMax}].
 }
-  \item{type}{
-A \code{character} indicating the type of ridge estimator to be used. Must be one of: "Alt", "ArchI", "ArchII".
+  \item{fold}{
+A \code{numeric} or \code{integer} specifying the number of folds to apply in the cross-validation.
 }
   \item{cor}{
 A \code{logical} indicating if the evaluation of the LOOCV score should be performed on the correlation scale.
 }
   \item{target}{
 A target \code{matrix} (in precision terms) for Type I ridge estimators.
+}
+  \item{type}{
+A \code{character} indicating the type of ridge estimator to be used. Must be one of: "Alt", "ArchI", "ArchII".
 }
   \item{output}{
 A \code{character} indicating if the output is either heavy or light. Must be one of: "all", "light".
@@ -51,7 +53,7 @@ A \code{logical} indicating if information on progress should be printed on scre
 The function calculates a cross-validated negative log-likelihood score (using a regularized ridge
 estimator for the precision matrix) for each
 value of the penalty parameter contained in the search grid by way of
-leave-one-out cross-validation. The value of the penalty parameter
+\eqn{K}-fold cross-validation. The value of the penalty parameter
 that achieves the lowest cross-validated negative log-likelihood score
 is deemed optimal. The penalty parameter must be positive such that \code{lambdaMin} must
 be a positive scalar. The maximum allowable value of \code{lambdaMax}
@@ -72,12 +74,14 @@ Carel F.W. Peeters <cf.peeters@vumc.nl>, Wessel N. van Wieringen
 }
 \note{
 When \code{cor = TRUE} correlation matrices are used in the computation of the (cross-validated) negative
-log-likelihood score, i.e., the leave-one-out sample covariance matrix is a matrix on the correlation scale.
+log-likelihood score, i.e., the \eqn{K}-fold sample covariance matrix is a matrix on the correlation scale.
 When performing evaluation on the correlation scale the data are assumed to be standardized.
 If \code{cor = TRUE} and one wishes to used the default target specification one may consider using \code{target = default.target(covML(Y, cor = TRUE))}. This gives a default target under the assumption of standardized data.
+
+Under the default setting of the fold-argument, \code{fold = nrow(Y)}, one performes leave-one-out cross-validation.
 }
 \seealso{
-\code{\link{ridgeP}}, \code{\link{optPenalty.LOOCVauto}}, \code{\link{optPenalty.aLOOCV}}, \cr
+\code{\link{ridgeP}}, \code{\link{optPenalty.kCVauto}}, \code{\link{optPenalty.aLOOCV}}, \cr
 \code{\link{default.target}}, \code{\link{covML}}
 }
 \examples{
@@ -88,15 +92,20 @@ set.seed(333)
 X = matrix(rnorm(n*p), nrow = n, ncol = p)
 colnames(X)[1:25] = letters[1:25]
 
-## Obtain regularized precision under optimal penalty
-OPT  <- optPenalty.LOOCV(X, lambdaMin = .5, lambdaMax = 30, step = 100); OPT
+## Obtain regularized precision under optimal penalty using K = n
+OPT  <- optPenalty.kCV(X, lambdaMin = .5, lambdaMax = 30, step = 100); OPT
 OPT$optLambda	# Optimal penalty
 OPT$optPrec	  # Regularized precision under optimal penalty
 
 ## Another example with standardized data
 X <- scale(X, center = TRUE, scale = TRUE)
-OPT  <- optPenalty.LOOCV(X, lambdaMin = .5, lambdaMax = 30, step = 100, cor = TRUE,
-                         target = default.target(covML(X, cor = TRUE))); OPT
+OPT  <- optPenalty.kCV(X, lambdaMin = .5, lambdaMax = 30, step = 100, cor = TRUE,
+                       target = default.target(covML(X, cor = TRUE))); OPT
+OPT$optLambda	# Optimal penalty
+OPT$optPrec	  # Regularized precision under optimal penalty
+
+## Another example using K = 5
+OPT  <- optPenalty.kCV(X, lambdaMin = .5, lambdaMax = 30, step = 100, fold = 5); OPT
 OPT$optLambda	# Optimal penalty
 OPT$optPrec	  # Regularized precision under optimal penalty
 }
