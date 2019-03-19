@@ -5,7 +5,7 @@
 }
 \description{
 Simulate data from a p-dimensional (zero-mean) gaussian graphical model (GGM) with a specified (or random) topology and return the sample covariance matrix or matrices.
-Can also return the original simulated data.
+Can also return the original simulated data or underlying precision matrix.
 }
 \usage{
 createS(n, p,
@@ -21,7 +21,7 @@ createS(n, p,
   \item{dataset}{A \code{logical} value specifying whether the sample covariance or the simulated data itself should be returned.}
   \item{precision}{A \code{logical} value. If \code{TRUE} the constructed precision matrix
   is returned.}
-  \item{nonzero}{A \code{numeric} of length 1 giving the value of the nonzero entries used in some typologies.}
+  \item{nonzero}{A \code{numeric} of length 1 giving the value of the nonzero entries used in some topologies.}
   \item{m}{A \code{integer} giving the number of blocks (i.e. conditionally independent components) to create. If \code{m} is greater than 1, then the given \code{topology} is used on \code{m} blocks of approximately equal size.}
   \item{banded.n}{A \code{integer} of length one giving the number of bands. Only used if \code{topology} is one of \code{"banded"}, \code{"small-world"}, or \code{"Watts-Strogatz"}.}
   \item{invwishart}{\code{logical}. If \code{TRUE} the constructed precision matrix is used as the scale matrix of an inverse Wishart distribution and class covariance matrices are drawn from this distribution.}
@@ -39,7 +39,7 @@ If \code{precision} is \code{TRUE} the population precision matrix is returned.
 This is useful to see what the actual would-be-used precision matrices are.
 The available values of \code{topology} are described below.
 Unless otherwise stated the diagonal entries are always one.
-If \code{m} is 2 or greater block diagonal precision matrix are constructed and used.
+If \code{m} is 2 or greater block diagonal precision matrices are constructed and used.
 \itemize{
   \item \code{"identity"}: uses the identity matrix (\code{diag(p)}) as precision matrix.
   Corresponds to no conditional dependencies.
@@ -133,7 +133,7 @@ createS(n = c(10,10), p = 5, "banded", invwishart = TRUE, nu = 1e10)
 # The precision argument can again be used to see the actual realised class
 # precision matrices used when invwishart = TRUE.
 
-# The Plist argumet is used to reuse old precision matrices or
+# The Plist argument is used to reuse old precision matrices or
 # user-generated ones
 P <- createS(n = 1, p = 5, "banded", precision = TRUE)
 lapply(createS(n = c(1e5, 1e5), p = 5, Plist = list(P, P+1)), solve)
