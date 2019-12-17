@@ -13,8 +13,8 @@
 ##             Amsterdam, the Netherlands
 ## Email:	     cf.peeters@vumc.nl
 ##
-## Version: 2.2.1
-## Last Update:	19/03/2019
+## Version: 2.2.2
+## Last Update:	16/12/2019
 ## Description:	Ridge estimation for high-dimensional precision matrices
 ##              Includes supporting functions for (integrative) graphical modeling
 ##
@@ -38,9 +38,9 @@
 ##       van Wieringen, W.N. (2015).
 ##       "Targeted Fused Ridge Estimation of Inverse Covariance Matrices from
 ##       Multiple High-Dimensional Data Classes", arXiv:1509.07982v1 [stat.ME].
-## 	 [4] Peeters, C.F.W., van de Wiel, M.A., & van Wieringen, W.N. (2016).
+## 	 [4] Peeters, C.F.W., van de Wiel, M.A., & van Wieringen, W.N. (2019).
 ##       "The Spectral Condition Number Plot for Regularization Parameter
-##       Determination", arXiv:1608.04123v1 [stat.CO].
+##       Evaluation", Computational Statistics.
 ##
 ################################################################################
 ################################################################################
@@ -1472,7 +1472,8 @@ CNplot <- function(S, lambdaMin, lambdaMax, step, type = "Alt",
     # Calculate spectral condition number ridge estimate on lambda grid
     if (verbose){cat("Calculating spectral condition numbers...", "\n")}
     if (type == "Alt" & all(target == 0)){
-      Spectral <- eigs_sym(S, 2, which = "BE", opts = list(retvec = FALSE))$values
+      Spectral <- eigs_sym(S, 2, which = "BE",
+                           opts = list(retvec = FALSE, maxitr = 1000000))$values
       for (k in 1:length(lambdas)){
         Eigshrink <- .armaEigShrink(Spectral, lambdas[k])
         condNR[k] <- as.numeric(max(Eigshrink)/min(Eigshrink))
@@ -1480,7 +1481,8 @@ CNplot <- function(S, lambdaMin, lambdaMax, step, type = "Alt",
     } else if (type == "Alt" & all(target[!diag(nrow(target))] == 0) &
                (length(unique(diag(target))) == 1)){
       varPhi   <- unique(diag(target))
-      Spectral <- eigs_sym(S, 2, which = "BE", opts = list(retvec = FALSE))$values
+      Spectral <- eigs_sym(S, 2, which = "BE",
+                           opts = list(retvec = FALSE, maxitr = 1000000))$values
       for (k in 1:length(lambdas)){
         Eigshrink <- .armaEigShrink(Spectral, lambdas[k], cons = varPhi)
         condNR[k] <- as.numeric(max(Eigshrink)/min(Eigshrink))
@@ -1494,7 +1496,8 @@ CNplot <- function(S, lambdaMin, lambdaMax, step, type = "Alt",
       } else if (type == "ArchI" & all(target[!diag(nrow(target))] == 0) &
                  (length(unique(diag(target))) == 1)){
         varPhi   <- unique(diag(target))
-        Spectral <- eigs_sym(S, 2, which = "BE", opts = list(retvec = FALSE))$values
+        Spectral <- eigs_sym(S, 2, which = "BE",
+                             opts = list(retvec = FALSE, maxitr = 1000000))$values
         for (k in 1:length(lambdas)){
           Eigshrink <- .armaEigShrinkArchI(Spectral, lambdas[k], cons = varPhi)
           condNR[k] <- as.numeric(max(Eigshrink)/min(Eigshrink))
@@ -1503,12 +1506,14 @@ CNplot <- function(S, lambdaMin, lambdaMax, step, type = "Alt",
         if (type == "ArchI"){
           for (k in 1:length(lambdas)){
             P         <- .ridgeSi(S, lambdas[k], type = type, target = target)
-            Eigs      <- eigs_sym(P, 2, which = "BE", opts = list(retvec = FALSE))$values
+            Eigs      <- eigs_sym(P, 2, which = "BE",
+                                  opts = list(retvec = FALSE, maxitr = 1000000))$values
             condNR[k] <- as.numeric(max(Eigs)/min(Eigs))
           }
         }
         if (type == "ArchII"){
-          Spectral <- eigs_sym(S, 2, which = "BE", opts = list(retvec = FALSE))$values
+          Spectral <- eigs_sym(S, 2, which = "BE",
+                               opts = list(retvec = FALSE, maxitr = 1000000))$values
           for (k in 1:length(lambdas)){
             Eigs      <- Spectral + lambdas[k]
             condNR[k] <- as.numeric(max(Eigs)/min(Eigs))
@@ -2832,7 +2837,7 @@ Ugraph <- function(M, type = c("plain", "fancy", "weighted"),
          'layout_with_fr', 'layout_with_kk',
          'layout_with_lgl'}")
   }
-  else if (!is.null(coords) & class(coords) != "matrix"){
+  else if (!is.null(coords) & !inherits(coords, "matrix")){
     stop("Input (coords) is of wrong class")
   }
   else if (is.null(lay) & is.null(coords)){
@@ -3914,7 +3919,7 @@ Communities <- function(P, graph = TRUE, lay = "layout_with_fr", coords = NULL,
              'layout_with_fr', 'layout_with_kk',
              'layout_with_lgl'}")
       }
-      else if (!is.null(coords) & class(coords) != "matrix"){
+      else if (!is.null(coords) & !inherits(coords, "matrix")){
         stop("Input (coords) is of wrong class")
       }
       else if (is.null(lay) & is.null(coords)){
@@ -4106,7 +4111,7 @@ DiffGraph <- function(P1, P2, lay = "layout_with_fr", coords = NULL,
          'layout_with_fr', 'layout_with_kk',
          'layout_with_lgl'}")
   }
-  else if (!is.null(coords) & class(coords) != "matrix"){
+  else if (!is.null(coords) & !inherits(coords, "matrix")){
     stop("Input (coords) is of wrong class")
   }
   else if (is.null(lay) & is.null(coords)){
