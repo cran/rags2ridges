@@ -31,7 +31,7 @@ devtools::install_github("CFWP/rags2ridges")
 ```
 
 Note, that this version is in development and is different from the version at CRAN. As such, it may be unstable. Be sure that you have the
-[package development prerequisites](https://www.rstudio.com/ide/docs/packages/prerequisites) if you wish to install the package from the source.
+[package development prerequisites](https://support.rstudio.com/hc/en-us/articles/200486498-Package-Development-Prerequisites) if you wish to install the package from the source.
 
 When installed, run `news(package = "rags2ridges")` to view the latest notable changes to **rags2ridges**.
 
@@ -44,7 +44,7 @@ Relevant publications to **rags2ridges** include (ordered according to year):
 
  1. Peeters, C.F.W., Bilgrau, A.E., & van Wieringen, W.N. (2020). 
     *"rags2ridges: Ridge Estimation of Precision Matrices from High-Dimensional Data"*. 
-    R package, version 2.2.3
+    R package, version 2.2.4
  2. Peeters, C.F.W., van de Wiel, M.A., & van Wieringen, W.N. (2020)
     *"The Spectral Condition Number Plot for Regularization Parameter Evaluation"*,
     Computational Statistics, vol. 35:629-646
