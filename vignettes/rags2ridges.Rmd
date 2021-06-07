@@ -1,0 +1,209 @@
+---
+title: "Introduction to rags2ridges"
+output: 
+  rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to rags2ridges}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(digits = 3)
+```
+
+**rags2ridges** is an R-package for *fast* and *proper* L2-penalized estimation of precision (and covariance) matrices also called **ridge estimation**. Its L2-penalty features the ability to shrink towards a target matrix, allowing for incorporation of prior knowledge. Likewise, it also features a *fused* L2 ridge penalty allows for simultaneous estimation of multiple matrices. 
+The package also contains additional functions for post-processing the L2-penalized estimates --- useful for feature selection and when doing graphical modelling. The *fused* ridge estimation is useful when dealing with grouped data as when doing meta or integrative analysis.
+
+This vignette provides a light introduction on how to get started with regular ridge estimation of precision matrices and further steps.
+
+
+## Getting started
+
+### Package installation
+
+The README details how to install the **rags2ridges** package. When installed, the package is loaded as seen below where we also define a function for adding pretty names to a matrix.
+
+```{r load_pkg, message=FALSE}
+library(rags2ridges)
+```
+
+
+### Small theoretical primer and package usage
+
+The sample variance-covariance matrix, or simply *covariance matrix*, is well-known and ubiquitous. It is given by
+
+$$
+S = \frac{1}{n - 1}XX^T
+$$
+
+where $X$ is the $n \times p$ data matrix that is zero-centered with each $p$-dimensional observations in the rows. I.e. each row of $X$ is an observation and each column is feature. Often high-dimensional data is organised this way (or transposed).
+
+That $X$ is zero-centered simply means that the column means has been subtracted the columns. The very similar estimate $S = \frac{1}{n}XX^T$ without [Bessel's correction](https://en.wikipedia.org/wiki/Bessel%27s_correction) is the maximum likelihood estimate in a multivariate normal model with mean $0$ and covariance $\Sigma$. The likelihood function in this case is given by
+
+$$
+\ell(\Omega; S) = \ln|\Omega| - \text{tr}(S\Omega)
+$$
+
+where $\Omega = \Sigma^{-1}$ is the so-called precision matrix (also sometimes called the *concentration matrix*). It is precisely this $\Omega$ for which we seek an estimate we will denote $P$. Indeed, one can naturally try to use the inverse of $S$ for this:
+
+$$
+P = S^{-1}
+$$
+
+Let's try.
+
+The `createS()` function can easily simulate covariance matrices. But we go a more verbose route for illustration:
+
+```{r createS}
+p <- 6
+n <- 20
+X <- createS(n = n, p = p, dataset = TRUE)
+head(X, n = 4) # Show 4 first of the n rows
+```
+
+Here the columns corresponds to features A, B, C, and so on.
+
+When can then arrive a the MLE using `covML()` which *centers* X (subtracting the column means) and then computes the estimate:
+
+```{r covML}
+S <- covML(X)
+print(S)
+```
+
+Using `cov2cor()` the well-known correlation matrix could be obtained.
+
+By default, `createS()` simulates zero-mean i.i.d. normal variables (corresponding to $\Sigma=\Omega=I$ being the identity matrix), but it has plenty of possibilities for more intricate covariance structures. 
+The `S` matrix could have been obtained directly had we omitted the `dataset` argument, leaving it to be the default `FALSE`. The `rmvnormal()` function is utilized by `createS()` to generate the normal sample.
+
+We can obtain the precision estimate `P` using `solve()` to invert `S`:
+
+```{r solveS}
+P <- solve(S)
+print(P)
+```
+
+That's it! Everything goes well here only because $n < p$. However, when $p$ is close to $n$, the estimate become unstable and varies wildly and when $p$ exceeds $n$ one can no longer invert $S$ and this strategy fails:
+
+```{r solveS2, error=TRUE}
+p <- 25
+S2 <- createS(n = n, p = p)  # Direct to S
+P2 <- solve(S2)
+```
+
+Note that this is now a $25 \times 25$ precision matrix we are trying to estimate. Datasets where $p > n$ are starting to be common, so what now?
+ 
+To solve the problem, **rags2ridges** adds a so-called ridge penalty to the likelihood above --- this method is also called $L_2$ shrinkage and works by "shrinking" the eigenvalues of $S$ in a particular manner to combat that they "explode" when $p \geq n$. 
+
+The core problem that **rags2ridges** solves is that
+
+$$
+\ell(\Omega; S) = \ln|\Omega| - \text{tr}(S\Omega) - \frac{\lambda}{2}|| \Omega - T||^2_2
+$$
+where $\lambda > 0$ is the ridge penalty parameter, $T$ is a $p \times p$ known *target* matrix (which we will get back to) and $||\cdot||_2$ is the $L_2$-norm. The maximizing solution here is surprisingly on closed form, but it is rather complicated[^1]. Assume for now the target matrix is an all zero matrix and thus out of the equation.
+
+The core function of **rags2ridges** is `ridgeP` which computes this estimate in a fast manner.
+
+```{r ridgeP}
+P2 <- ridgeP(S2, lambda = 1.17)
+print(P2[1:7, 1:7]) # Showing only the 7 first cols and rows
+```
+
+And voilà, we have our estimate. We will now discuss the penalty parameters and target matrix and how to choose them.
+
+
+
+### The penalty parameter
+
+The penalty parameter $\lambda$ (`lambda`) shrinks the values of $P$ such toward 0 (when $T = 0$) --- i.e. very larges values of $\lambda$ makes $P$ "small" and more stable whereas smaller values of $\lambda$ makes the $P$ tend toward the (possibly non-existent) $S^{-1}$. So what `lambda` should you choose? One strategy for choosing $\lambda$ is selecting it to be stable yet precise (a bias-variance trade-off). Automatic k-fold cross-validation can be done with `optPenalty.kCVauto()`is well suited for this:
+
+```{r optPenalty.LOOCV}
+Y <- createS(n, p, dataset = TRUE)
+opt <- optPenalty.kCVauto(Y, lambdaMin = 0.001, lambdaMax = 100)
+str(opt)
+```
+
+As seen, the function returns a list with the optimal penalty parameter and corresponding ridge precision estimate. By default, the the functions performs leave-one-out cross validation. See ?optPenalty.kCVauto` for more information.
+
+
+### The target matrix
+
+The target matrix $T$ is a matrix the same size as $P$ which the estimate is "shrunken" toward --- i.e. for large values of $\lambda$ the estimate goes toward $T$. The choice of the target is another subject. While one might first think that the all-zeros $T = [0]$ would be a default it is intuitively not a good target. This is because we'd like an estimate that is positive definite (the matrix-equivalent to at positive number) and the null-matrix is not positive definite.
+
+If one has a very good prior estimate or some other information this might used to construct the target. E.g. the function `kegg.target()` utilizes the *Kyoto Encyclopedia of Genes and Genomes* (KEGG) database of gene and gene-networks together with pilot data to construct a target. 
+
+In the absence of such knowledge, the default could be a data-driven diagonal matrix. The function `default.target()` offers some different approaches to selecting this. A good choice here is often the diagonal matrix times the reciprocal mean of the eigenvalues of the sample covariance as entries. See `?default.target` for more choices.
+
+
+### Gaussian graphical modeling and post processing
+
+> #### What is so interesting with the precision matrix anyway? I'm always interested in correlations and thus the correlation matrix. 
+
+As you may know, correlation does not imply causation. Nor does covariance imply causation. However, precision matrix provides stronger hints at causation. A relatively simple transformation of $P$ maps it to partial correlations---much like how the sample covariance $S$ easily maps to the correlation matrix. More precisely, the $ij$th partial correlation is given by
+
+$$
+\rho_{ij|\text{all others}} = \frac{- p_{ij}}{\sqrt{p_{ii}p_{jj}}}
+$$
+
+where $p_{ij}$ is the $ij$th entry of $P$. 
+
+Partial correlations measure the linear association between two random variables whilst removing the effect of other random variables; in this case, it is all the remaining variables. This somewhat absolves the issue in "regular" correlations where are often correlated but only indirectly; either by sort of 'transitivity of correlations' (which does not hold generally and is not[^2] so[^3] simple[^4]) or by common underlying variables.
+
+> #### OK, but what is **graphical** about the graphical ridge estimate?
+
+In a multivariate normal model, $p_{ij} = p_{ji} = 0$ if and only if $X_i$ and $X_j$ are conditionally independent when condition on all other variables. I.e. $X_i$ and $X_j$ are conditionally independent given all $X_k$ where $k \neq i$ and $k \neq j$ if and when the $ij$th and ${ji}$th elements of $P$ are zero. In real world applications, this means that $P$ is often relatively sparse (lots of zeros). This also points to the close relationship between $P$ and the partial correlations.
+
+The non-zero entries of the a symmetric PD matrix can them be interpreted the edges of a graph where nodes correspond to the variables.
+
+
+> #### Graphical ridge estimation? Why not graphical Lasso?
+
+The graphical lasso (gLasso) is the L1-equivalent to graphical ridge. A nice feature of the L1 penalty automatically induces sparsity and thus also select the edges in the underlying graph. The L2 penalty of *rags2ridges* relies on an extra step that selects the edges after $P$ is estimated. While some may argue this as a drawback (typically due to a lack of perceived simplicity), it is often beneficial to separate the "variable selection" and estimation.
+
+First, a separate post-hoc selection step allows for greater flexibility.
+
+Secondly, when co-linearity is present the L1 penalty is "unstable" in the selection between the items. I.e. if 2 covariances are co-linear only one of them will typically be selected in a unpredictable way whereas the L2 will put equal weight on both and "average" their effect. Ultimately, this means that the L2 estimate is typically more stable than the L1.
+
+At last point to mention here is also that the true underlying graph might not always be very sparse (or sparse at all).
+
+
+> #### How do I select the edges then?
+
+The `sparsify()` functions lets you select the non-zero entries of P corresponding to edges. It supports a handful different approaches ranging from simple thresholding to false discovery rate based selection.
+
+After edge select `GGMnetworkStats()` can be utilized to get summary statistics of the resulting graph topology.
+
+## Concluding remarks
+
+The `fullMontyS()` function is a convenience wrapper getting from the data through the penalized estimate to the corresponding conditional independence graph and topology summaries.
+
+For a full introduction to the theoretical properties as well as more context to the problem, see [van Wieringen & Peeters (2016)][1].
+
+**rags2ridges** also comes with functionality for *targeted* and *grouped* (or, *fused*) graphical ridge regression called the fused graphical ridge. See [[2]](https://arxiv.org/abs/1509.07982) below. The functions in this `rags2ridges` module are generally post-fixed with `.fused`.
+
+
+### References
+
+[1.][1]. van Wieringen, W.N. and Peeters, C.F.W. **(2016)**. [*Ridge Estimation of Inverse Covariance Matrices from High-Dimensional Data.*][1] Computational Statistics & Data Analysis, vol. 103: 284-303.
+
+[2.][2] Bilgrau, A.E., Peeters, C.F.W., Eriksen, P.S., Boegsted, M., and van Wieringen, W.N. **(2015)**. [*Targeted Fused Ridge Estimation of Inverse Covariance Matrices from Multiple High-Dimensional Data Classes.*][2] arXiv:1509.07982 [stat.ME].
+
+[1]: https://www.sciencedirect.com/science/article/pii/S0167947316301141
+[2]: https://arxiv.org/abs/1509.07982
+
+[^1]:
+Solution for the graphical ridge problem:
+$$
+P(\lambda) 
+= \Bigg\{ \bigg[ \lambda I_{p\times p} + \frac{1}{4}(S - \lambda T)^{2} \bigg]^{1/2} + \frac{1}{2}(S -\lambda T) \Bigg\}^{-1}
+$$
+
+[^2]:
+https://stats.stackexchange.com/questions/181376/is-correlation-transitive
+
+[^3]:
+https://emilkirkegaard.dk/en/2016/02/causality-transitivity-and-correlation/
+
+[^4]:
+https://terrytao.wordpress.com/2014/06/05/when-is-correlation-transitive/

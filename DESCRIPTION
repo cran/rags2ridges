@@ -2,10 +2,28 @@ Package: rags2ridges
 Type: Package
 Title: Ridge Estimation of Precision Matrices from High-Dimensional
         Data
-Version: 2.2.4
-Maintainer: Carel F.W. Peeters <cf.peeters@vumc.nl>
-Author: Carel F.W. Peeters [cre, aut], Anders Ellern Bilgrau [aut], Wessel N. van Wieringen [aut]
-Description: Proper L2-penalized maximum likelihood estimators for precision matrices and supporting functions to employ these estimators in a graphical modeling setting. For details see van Wieringen & Peeters (2016) <doi:10.1016/j.csda.2016.05.012> and associated publications.
+Version: 2.2.5
+Maintainer: Carel F.W. Peeters <carel.peeters@wur.nl>
+Authors@R: c(
+    person(given = c("Carel", "F.W."),
+           family = "Peeters",
+           email = "carel.peeters@wur.nl",
+           role = c("aut", "cre", "cph"),
+           comment = c(ORCID = "0000-0001-5766-9969")),
+    person(given = c("Anders", "Ellern"),
+           family = "Bilgrau",
+           role = c("aut", "cph"),
+           email = "anders.ellern.bilgrau@gmail.com", 
+           comment = c(ORCID = "0000-0001-9875-2902")),
+    person(given = c("Wessel", "N."),
+           family = "van Wieringen",
+           role = c("aut"),
+           comment = c(ORCID = "0000-0002-5100-9123"))
+    )
+Description: Proper L2-penalized maximum likelihood estimators for precision 
+  matrices and supporting functions to employ these estimators in a graphical 
+  modeling setting. For details see van Wieringen & Peeters (2016) 
+  <doi:10.1016/j.csda.2016.05.012> and associated publications.
 Depends: R (>= 2.15.1)
 biocViews:
 Imports: igraph, stats, methods, expm, reshape, ggplot2, Hmisc,
@@ -14,11 +32,18 @@ Imports: igraph, stats, methods, expm, reshape, ggplot2, Hmisc,
 LinkingTo: Rcpp, RcppArmadillo
 KeepSource: yes
 License: GPL (>= 2)
-URL: https://github.com/CFWP/rags2ridges
-Suggests: KEGGgraph, testthat
+URL: https://cfwp.github.io/rags2ridges/,
+        https://github.com/CFWP/rags2ridges
+Suggests: KEGGgraph, testthat, knitr, rmarkdown
 RoxygenNote: 7.1.1
 Encoding: UTF-8
+VignetteBuilder: knitr
 NeedsCompilation: yes
-Packaged: 2020-12-07 15:25:43 UTC; cf.peeters
+Packaged: 2021-06-07 14:15:55 UTC; cfwpe
+Author: Carel F.W. Peeters [aut, cre, cph]
+    (<https://orcid.org/0000-0001-5766-9969>),
+  Anders Ellern Bilgrau [aut, cph]
+    (<https://orcid.org/0000-0001-9875-2902>),
+  Wessel N. van Wieringen [aut] (<https://orcid.org/0000-0002-5100-9123>)
 Repository: CRAN
-Date/Publication: 2020-12-08 10:20:06 UTC
+Date/Publication: 2021-06-07 16:20:01 UTC
