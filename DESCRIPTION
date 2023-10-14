@@ -2,7 +2,7 @@ Package: rags2ridges
 Type: Package
 Title: Ridge Estimation of Precision Matrices from High-Dimensional
         Data
-Version: 2.2.6
+Version: 2.2.7
 Maintainer: Carel F.W. Peeters <carel.peeters@wur.nl>
 Authors@R: c(
     person(given = c("Carel", "F.W."),
@@ -35,15 +35,15 @@ License: GPL (>= 2)
 URL: https://cfwp.github.io/rags2ridges/,
         https://github.com/CFWP/rags2ridges
 Suggests: KEGGgraph, testthat, knitr, rmarkdown
-RoxygenNote: 7.1.1
+RoxygenNote: 7.2.3
 Encoding: UTF-8
 VignetteBuilder: knitr
 NeedsCompilation: yes
-Packaged: 2022-04-30 08:04:49 UTC; cfwpe
+Packaged: 2023-10-13 20:18:22 UTC; cfwpe
 Author: Carel F.W. Peeters [aut, cre, cph]
     (<https://orcid.org/0000-0001-5766-9969>),
   Anders Ellern Bilgrau [aut, cph]
     (<https://orcid.org/0000-0001-9875-2902>),
   Wessel N. van Wieringen [aut] (<https://orcid.org/0000-0002-5100-9123>)
 Repository: CRAN
-Date/Publication: 2022-05-01 14:40:02 UTC
+Date/Publication: 2023-10-14 14:10:02 UTC

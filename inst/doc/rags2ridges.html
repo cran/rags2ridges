@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </style>
 
 
+
 <style type="text/css">
   code {
     white-space: pre;
@@ -122,13 +123,20 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
   for (var i = 0; i < sheets.length; i++) {
     if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
     try { var rules = sheets[i].cssRules; } catch (e) { continue; }
-    for (var j = 0; j < rules.length; j++) {
+    var j = 0;
+    while (j < rules.length) {
       var rule = rules[j];
       // check if there is a div.sourceCode rule
-      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") continue;
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
       var style = rule.style.cssText;
       // check if color or background-color is set
-      if (rule.style.color === '' && rule.style.backgroundColor === '') continue;
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
       // replace div.sourceCode by a pre.sourceCode rule
       sheets[i].deleteRule(j);
       sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
@@ -366,39 +374,39 @@ P = S^{-1}
 <span id="cb2-2"><a href="#cb2-2"></a>n &lt;-<span class="st"> </span><span class="dv">20</span></span>
 <span id="cb2-3"><a href="#cb2-3"></a>X &lt;-<span class="st"> </span><span class="kw">createS</span>(<span class="dt">n =</span> n, <span class="dt">p =</span> p, <span class="dt">dataset =</span> <span class="ot">TRUE</span>)</span>
 <span id="cb2-4"><a href="#cb2-4"></a><span class="kw">head</span>(X, <span class="dt">n =</span> <span class="dv">4</span>) <span class="co"># Show 4 first of the n rows</span></span></code></pre></div>
-<pre><code>##           A       B       C       D      E      F
-## [1,] -2.355  0.3773  0.9469  1.6677 -0.385 -0.262
-## [2,]  0.153 -0.5901  2.0843  0.1033 -0.720 -1.711
-## [3,]  0.804  0.0954  0.0858  0.0618  2.118 -0.427
-## [4,]  0.344  1.1899 -1.3228 -2.0971  0.335 -2.330</code></pre>
+<pre><code>##            A      B       C      D     E       F
+## [1,]  0.1929 -0.166  0.9021  0.125 0.187 -0.5412
+## [2,]  0.7405  0.889  0.0172 -0.635 0.537 -0.0827
+## [3,] -1.2461 -0.683 -1.3470  0.693 0.648 -1.7891
+## [4,]  0.0166 -0.851  1.9025 -1.222 1.392  1.0383</code></pre>
 <p>Here the columns corresponds to features A, B, C, and so on.</p>
 <p>When can then arrive a the MLE using <code>covML()</code> which <em>centers</em> X (subtracting the column means) and then computes the estimate:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1"></a>S &lt;-<span class="st"> </span><span class="kw">covML</span>(X)</span>
 <span id="cb4-2"><a href="#cb4-2"></a><span class="kw">print</span>(S)</span></code></pre></div>
-<pre><code>##          A        B       C       D       E       F
-## A  0.82772 -0.00637  0.0875 -0.0691  0.0140 -0.2379
-## B -0.00637  0.43867 -0.4751 -0.0827  0.1043 -0.1070
-## C  0.08755 -0.47507  1.2374  0.1985 -0.1741 -0.1292
-## D -0.06905 -0.08272  0.1985  0.9334 -0.2169  0.0553
-## E  0.01399  0.10435 -0.1741 -0.2169  0.8998  0.0718
-## F -0.23789 -0.10696 -0.1292  0.0553  0.0718  1.0327</code></pre>
+<pre><code>##        A       B       C       D       E       F
+## A  1.512  0.2049  0.1829  0.4241 -0.1348  0.3695
+## B  0.205  1.0297  0.0048 -0.4313 -0.2056 -0.0964
+## C  0.183  0.0048  0.9096 -0.0915 -0.2594  0.0195
+## D  0.424 -0.4313 -0.0915  0.9431 -0.0461  0.2925
+## E -0.135 -0.2056 -0.2594 -0.0461  0.7429  0.2179
+## F  0.370 -0.0964  0.0195  0.2925  0.2179  0.8464</code></pre>
 <p>Using <code>cov2cor()</code> the well-known correlation matrix could be obtained.</p>
 <p>By default, <code>createS()</code> simulates zero-mean i.i.d. normal variables (corresponding to <span class="math inline">\(\Sigma=\Omega=I\)</span> being the identity matrix), but it has plenty of possibilities for more intricate covariance structures. The <code>S</code> matrix could have been obtained directly had we omitted the <code>dataset</code> argument, leaving it to be the default <code>FALSE</code>. The <code>rmvnormal()</code> function is utilized by <code>createS()</code> to generate the normal sample.</p>
 <p>We can obtain the precision estimate <code>P</code> using <code>solve()</code> to invert <code>S</code>:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1"></a>P &lt;-<span class="st"> </span><span class="kw">solve</span>(S)</span>
 <span id="cb6-2"><a href="#cb6-2"></a><span class="kw">print</span>(P)</span></code></pre></div>
-<pre><code>##         A       B       C       D       E       F
-## A  1.3084  0.0506 -0.0619  0.0873 -0.0408  0.2971
-## B  0.0506  4.3583  1.7199 -0.0747 -0.2472  0.6994
-## C -0.0619  1.7199  1.5461 -0.1971  0.0239  0.3662
-## D  0.0873 -0.0747 -0.1971  1.1792  0.2609 -0.0936
-## E -0.0408 -0.2472  0.0239  0.2609  1.2187 -0.1307
-## F  0.2971  0.6994  0.3662 -0.0936 -0.1307  1.1691</code></pre>
+<pre><code>##          A      B      C      D        E      F
+## A  0.99181 -0.473 -0.250 -0.601  0.00514 -0.275
+## B -0.47262  1.612  0.365  1.056  0.59331 -0.136
+## C -0.25002  0.365  1.386  0.514  0.63669 -0.223
+## D -0.60098  1.056  0.514  2.050  0.63716 -0.502
+## E  0.00514  0.593  0.637  0.637  1.97175 -0.677
+## F -0.27466 -0.136 -0.223 -0.502 -0.67718  1.639</code></pre>
 <p>That’s it! Everything goes well here only because <span class="math inline">\(n &lt; p\)</span>. However, when <span class="math inline">\(p\)</span> is close to <span class="math inline">\(n\)</span>, the estimate become unstable and varies wildly and when <span class="math inline">\(p\)</span> exceeds <span class="math inline">\(n\)</span> one can no longer invert <span class="math inline">\(S\)</span> and this strategy fails:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1"></a>p &lt;-<span class="st"> </span><span class="dv">25</span></span>
 <span id="cb8-2"><a href="#cb8-2"></a>S2 &lt;-<span class="st"> </span><span class="kw">createS</span>(<span class="dt">n =</span> n, <span class="dt">p =</span> p)  <span class="co"># Direct to S</span></span>
 <span id="cb8-3"><a href="#cb8-3"></a>P2 &lt;-<span class="st"> </span><span class="kw">solve</span>(S2)</span></code></pre></div>
-<pre><code>## Error in solve.default(S2): system is computationally singular: reciprocal condition number = 5.9155e-19</code></pre>
+<pre><code>## Error in solve.default(S2): system is computationally singular: reciprocal condition number = 3.93946e-19</code></pre>
 <p>Note that this is now a <span class="math inline">\(25 \times 25\)</span> precision matrix we are trying to estimate. Datasets where <span class="math inline">\(p &gt; n\)</span> are starting to be common, so what now?</p>
 <p>To solve the problem, <strong>rags2ridges</strong> adds a so-called ridge penalty to the likelihood above — this method is also called <span class="math inline">\(L_2\)</span> shrinkage and works by “shrinking” the eigenvalues of <span class="math inline">\(S\)</span> in a particular manner to combat that they “explode” when <span class="math inline">\(p \geq n\)</span>.</p>
 <p>The core problem that <strong>rags2ridges</strong> solves is that</p>
@@ -408,14 +416,14 @@ P = S^{-1}
 <p>The core function of <strong>rags2ridges</strong> is <code>ridgeP</code> which computes this estimate in a fast manner.</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1"></a>P2 &lt;-<span class="st"> </span><span class="kw">ridgeP</span>(S2, <span class="dt">lambda =</span> <span class="fl">1.17</span>)</span>
 <span id="cb10-2"><a href="#cb10-2"></a><span class="kw">print</span>(P2[<span class="dv">1</span><span class="op">:</span><span class="dv">7</span>, <span class="dv">1</span><span class="op">:</span><span class="dv">7</span>]) <span class="co"># Showing only the 7 first cols and rows</span></span></code></pre></div>
-<pre><code>##         A       B       C       D        E        F       G
-## A  3.5513 -0.3371  0.1171  0.1337  0.11463  0.05037 -0.0707
-## B -0.3371  3.5698  0.3351  0.2159  0.04701 -0.11920 -0.0886
-## C  0.1171  0.3351  3.9316 -0.3253 -0.05029 -0.08893 -0.2153
-## D  0.1337  0.2159 -0.3253  3.3600  0.19479  0.01609 -0.3689
-## E  0.1146  0.0470 -0.0503  0.1948  4.38849  0.00704  0.0729
-## F  0.0504 -0.1192 -0.0889  0.0161  0.00704  3.82352 -0.1517
-## G -0.0707 -0.0886 -0.2153 -0.3689  0.07289 -0.15170  3.8998</code></pre>
+<pre><code>##         A         B         C       D       E       F       G
+## A  4.1380  0.074299 -0.077388  0.2333  0.1517 -0.0611 -0.0441
+## B  0.0743  3.852059  0.000171  0.0495 -0.3440  0.1268  0.4402
+## C -0.0774  0.000171  4.141499 -0.1013 -0.1807  0.0651 -0.0723
+## D  0.2333  0.049464 -0.101335  3.5453  0.0713 -0.0169  0.0986
+## E  0.1517 -0.344025 -0.180677  0.0713  3.8917  0.2976  0.1880
+## F -0.0611  0.126784  0.065059 -0.0169  0.2976  4.0244 -0.1250
+## G -0.0441  0.440229 -0.072276  0.0986  0.1880 -0.1250  3.6523</code></pre>
 <p>And voilà, we have our estimate. We will now discuss the penalty parameters and target matrix and how to choose them.</p>
 </div>
 <div id="the-penalty-parameter" class="section level3">
@@ -425,9 +433,9 @@ P = S^{-1}
 <span id="cb12-2"><a href="#cb12-2"></a>opt &lt;-<span class="st"> </span><span class="kw">optPenalty.kCVauto</span>(Y, <span class="dt">lambdaMin =</span> <span class="fl">0.001</span>, <span class="dt">lambdaMax =</span> <span class="dv">100</span>)</span>
 <span id="cb12-3"><a href="#cb12-3"></a><span class="kw">str</span>(opt)</span></code></pre></div>
 <pre><code>## List of 2
-##  $ optLambda: num 0.79
-##  $ optPrec  : &#39;ridgeP&#39; num [1:25, 1:25] 3.1074 -0.0385 -0.1297 -0.0963 -0.1403 ...
-##   ..- attr(*, &quot;lambda&quot;)= num 0.79
+##  $ optLambda: num 0.76
+##  $ optPrec  : &#39;ridgeP&#39; num [1:25, 1:25] 2.9202 -0.2749 -0.0744 -0.0204 -0.1199 ...
+##   ..- attr(*, &quot;lambda&quot;)= num 0.76
 ##   ..- attr(*, &quot;dimnames&quot;)=List of 2
 ##   .. ..$ : chr [1:25] &quot;A&quot; &quot;B&quot; &quot;C&quot; &quot;D&quot; ...
 ##   .. ..$ : chr [1:25] &quot;A&quot; &quot;B&quot; &quot;C&quot; &quot;D&quot; ...</code></pre>
