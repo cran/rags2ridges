@@ -374,39 +374,39 @@ P = S^{-1}
 <span id="cb2-2"><a href="#cb2-2"></a>n &lt;-<span class="st"> </span><span class="dv">20</span></span>
 <span id="cb2-3"><a href="#cb2-3"></a>X &lt;-<span class="st"> </span><span class="kw">createS</span>(<span class="dt">n =</span> n, <span class="dt">p =</span> p, <span class="dt">dataset =</span> <span class="ot">TRUE</span>)</span>
 <span id="cb2-4"><a href="#cb2-4"></a><span class="kw">head</span>(X, <span class="dt">n =</span> <span class="dv">4</span>) <span class="co"># Show 4 first of the n rows</span></span></code></pre></div>
-<pre><code>##            A      B       C      D     E       F
-## [1,]  0.1929 -0.166  0.9021  0.125 0.187 -0.5412
-## [2,]  0.7405  0.889  0.0172 -0.635 0.537 -0.0827
-## [3,] -1.2461 -0.683 -1.3470  0.693 0.648 -1.7891
-## [4,]  0.0166 -0.851  1.9025 -1.222 1.392  1.0383</code></pre>
+<pre><code>##            A     B      C       D      E      F
+## [1,] -2.6519 1.323  0.476 -0.0685 -0.639  0.986
+## [2,] -0.6559 0.384 -0.713 -0.6076 -1.441 -0.738
+## [3,] -1.3558 0.612 -0.156  0.9781  0.685  0.518
+## [4,]  0.0114 0.504 -0.858  0.0106 -0.860  0.298</code></pre>
 <p>Here the columns corresponds to features A, B, C, and so on.</p>
 <p>When can then arrive a the MLE using <code>covML()</code> which <em>centers</em> X (subtracting the column means) and then computes the estimate:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1"></a>S &lt;-<span class="st"> </span><span class="kw">covML</span>(X)</span>
 <span id="cb4-2"><a href="#cb4-2"></a><span class="kw">print</span>(S)</span></code></pre></div>
-<pre><code>##        A       B       C       D       E       F
-## A  1.512  0.2049  0.1829  0.4241 -0.1348  0.3695
-## B  0.205  1.0297  0.0048 -0.4313 -0.2056 -0.0964
-## C  0.183  0.0048  0.9096 -0.0915 -0.2594  0.0195
-## D  0.424 -0.4313 -0.0915  0.9431 -0.0461  0.2925
-## E -0.135 -0.2056 -0.2594 -0.0461  0.7429  0.2179
-## F  0.370 -0.0964  0.0195  0.2925  0.2179  0.8464</code></pre>
+<pre><code>##         A       B       C       D       E      F
+## A  1.1597 -0.4534 -0.3267 -0.1562  0.0702 0.0807
+## B -0.4534  1.0513  0.0305  0.1018  0.0332 0.2526
+## C -0.3267  0.0305  0.7172  0.0444 -0.0277 0.0620
+## D -0.1562  0.1018  0.0444  0.6497  0.2367 0.0801
+## E  0.0702  0.0332 -0.0277  0.2367  0.7598 0.0424
+## F  0.0807  0.2526  0.0620  0.0801  0.0424 0.8183</code></pre>
 <p>Using <code>cov2cor()</code> the well-known correlation matrix could be obtained.</p>
 <p>By default, <code>createS()</code> simulates zero-mean i.i.d. normal variables (corresponding to <span class="math inline">\(\Sigma=\Omega=I\)</span> being the identity matrix), but it has plenty of possibilities for more intricate covariance structures. The <code>S</code> matrix could have been obtained directly had we omitted the <code>dataset</code> argument, leaving it to be the default <code>FALSE</code>. The <code>rmvnormal()</code> function is utilized by <code>createS()</code> to generate the normal sample.</p>
 <p>We can obtain the precision estimate <code>P</code> using <code>solve()</code> to invert <code>S</code>:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1"></a>P &lt;-<span class="st"> </span><span class="kw">solve</span>(S)</span>
 <span id="cb6-2"><a href="#cb6-2"></a><span class="kw">print</span>(P)</span></code></pre></div>
-<pre><code>##          A      B      C      D        E      F
-## A  0.99181 -0.473 -0.250 -0.601  0.00514 -0.275
-## B -0.47262  1.612  0.365  1.056  0.59331 -0.136
-## C -0.25002  0.365  1.386  0.514  0.63669 -0.223
-## D -0.60098  1.056  0.514  2.050  0.63716 -0.502
-## E  0.00514  0.593  0.637  0.637  1.97175 -0.677
-## F -0.27466 -0.136 -0.223 -0.502 -0.67718  1.639</code></pre>
+<pre><code>##        A       B        C       D        E       F
+## A  1.366  0.6439  0.60222  0.3109 -0.20710 -0.3988
+## B  0.644  1.3410  0.27482  0.0184 -0.08621 -0.4956
+## C  0.602  0.2748  1.67962  0.0197  0.00266 -0.2736
+## D  0.311  0.0184  0.01970  1.8495 -0.59456 -0.1880
+## E -0.207 -0.0862  0.00266 -0.5946  1.52300  0.0261
+## F -0.399 -0.4956 -0.27361 -0.1880  0.02609  1.4521</code></pre>
 <p>That’s it! Everything goes well here only because <span class="math inline">\(n &lt; p\)</span>. However, when <span class="math inline">\(p\)</span> is close to <span class="math inline">\(n\)</span>, the estimate become unstable and varies wildly and when <span class="math inline">\(p\)</span> exceeds <span class="math inline">\(n\)</span> one can no longer invert <span class="math inline">\(S\)</span> and this strategy fails:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1"></a>p &lt;-<span class="st"> </span><span class="dv">25</span></span>
 <span id="cb8-2"><a href="#cb8-2"></a>S2 &lt;-<span class="st"> </span><span class="kw">createS</span>(<span class="dt">n =</span> n, <span class="dt">p =</span> p)  <span class="co"># Direct to S</span></span>
 <span id="cb8-3"><a href="#cb8-3"></a>P2 &lt;-<span class="st"> </span><span class="kw">solve</span>(S2)</span></code></pre></div>
-<pre><code>## Error in solve.default(S2): system is computationally singular: reciprocal condition number = 3.93946e-19</code></pre>
+<pre><code>## Error in solve.default(S2): system is computationally singular: reciprocal condition number = 8.76387e-19</code></pre>
 <p>Note that this is now a <span class="math inline">\(25 \times 25\)</span> precision matrix we are trying to estimate. Datasets where <span class="math inline">\(p &gt; n\)</span> are starting to be common, so what now?</p>
 <p>To solve the problem, <strong>rags2ridges</strong> adds a so-called ridge penalty to the likelihood above — this method is also called <span class="math inline">\(L_2\)</span> shrinkage and works by “shrinking” the eigenvalues of <span class="math inline">\(S\)</span> in a particular manner to combat that they “explode” when <span class="math inline">\(p \geq n\)</span>.</p>
 <p>The core problem that <strong>rags2ridges</strong> solves is that</p>
@@ -416,14 +416,14 @@ P = S^{-1}
 <p>The core function of <strong>rags2ridges</strong> is <code>ridgeP</code> which computes this estimate in a fast manner.</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1"></a>P2 &lt;-<span class="st"> </span><span class="kw">ridgeP</span>(S2, <span class="dt">lambda =</span> <span class="fl">1.17</span>)</span>
 <span id="cb10-2"><a href="#cb10-2"></a><span class="kw">print</span>(P2[<span class="dv">1</span><span class="op">:</span><span class="dv">7</span>, <span class="dv">1</span><span class="op">:</span><span class="dv">7</span>]) <span class="co"># Showing only the 7 first cols and rows</span></span></code></pre></div>
-<pre><code>##         A         B         C       D       E       F       G
-## A  4.1380  0.074299 -0.077388  0.2333  0.1517 -0.0611 -0.0441
-## B  0.0743  3.852059  0.000171  0.0495 -0.3440  0.1268  0.4402
-## C -0.0774  0.000171  4.141499 -0.1013 -0.1807  0.0651 -0.0723
-## D  0.2333  0.049464 -0.101335  3.5453  0.0713 -0.0169  0.0986
-## E  0.1517 -0.344025 -0.180677  0.0713  3.8917  0.2976  0.1880
-## F -0.0611  0.126784  0.065059 -0.0169  0.2976  4.0244 -0.1250
-## G -0.0441  0.440229 -0.072276  0.0986  0.1880 -0.1250  3.6523</code></pre>
+<pre><code>##         A        B       C        D      E       F      G
+## A  4.8727 -0.07088 -0.2653 -0.35127  0.325 -0.0887  0.104
+## B -0.0709  4.87597 -0.0443 -0.00536  0.191 -0.0787  0.185
+## C -0.2653 -0.04430  4.9903 -0.38406  0.403 -0.0589  0.195
+## D -0.3513 -0.00536 -0.3841  4.36419  0.419 -0.0508  0.378
+## E  0.3247  0.19139  0.4026  0.41906  4.228 -0.3428 -0.111
+## F -0.0887 -0.07873 -0.0589 -0.05076 -0.343  4.9015  0.114
+## G  0.1042  0.18547  0.1953  0.37818 -0.111  0.1136  5.000</code></pre>
 <p>And voilà, we have our estimate. We will now discuss the penalty parameters and target matrix and how to choose them.</p>
 </div>
 <div id="the-penalty-parameter" class="section level3">
@@ -433,9 +433,9 @@ P = S^{-1}
 <span id="cb12-2"><a href="#cb12-2"></a>opt &lt;-<span class="st"> </span><span class="kw">optPenalty.kCVauto</span>(Y, <span class="dt">lambdaMin =</span> <span class="fl">0.001</span>, <span class="dt">lambdaMax =</span> <span class="dv">100</span>)</span>
 <span id="cb12-3"><a href="#cb12-3"></a><span class="kw">str</span>(opt)</span></code></pre></div>
 <pre><code>## List of 2
-##  $ optLambda: num 0.76
-##  $ optPrec  : &#39;ridgeP&#39; num [1:25, 1:25] 2.9202 -0.2749 -0.0744 -0.0204 -0.1199 ...
-##   ..- attr(*, &quot;lambda&quot;)= num 0.76
+##  $ optLambda: num 0.369
+##  $ optPrec  : &#39;ridgeP&#39; num [1:25, 1:25] 2.856 -0.208 -0.197 0.568 -0.241 ...
+##   ..- attr(*, &quot;lambda&quot;)= num 0.369
 ##   ..- attr(*, &quot;dimnames&quot;)=List of 2
 ##   .. ..$ : chr [1:25] &quot;A&quot; &quot;B&quot; &quot;C&quot; &quot;D&quot; ...
 ##   .. ..$ : chr [1:25] &quot;A&quot; &quot;B&quot; &quot;C&quot; &quot;D&quot; ...</code></pre>
@@ -480,11 +480,11 @@ P = S^{-1}
 <div id="concluding-remarks" class="section level2">
 <h2>Concluding remarks</h2>
 <p>The <code>fullMontyS()</code> function is a convenience wrapper getting from the data through the penalized estimate to the corresponding conditional independence graph and topology summaries.</p>
-<p>For a full introduction to the theoretical properties as well as more context to the problem, see <a href="https://www.sciencedirect.com/science/article/pii/S0167947316301141">van Wieringen &amp; Peeters (2016)</a>.</p>
+<p>For a full introduction to the theoretical properties as well as more context to the problem, see <a href="https://doi.org/10.1016/j.csda.2016.05.012">van Wieringen &amp; Peeters (2016)</a>.</p>
 <p><strong>rags2ridges</strong> also comes with functionality for <em>targeted</em> and <em>grouped</em> (or, <em>fused</em>) graphical ridge regression called the fused graphical ridge. See <a href="https://arxiv.org/abs/1509.07982">[2]</a> below. The functions in this <code>rags2ridges</code> module are generally post-fixed with <code>.fused</code>.</p>
 <div id="references" class="section level3">
 <h3>References</h3>
-<p><a href="https://www.sciencedirect.com/science/article/pii/S0167947316301141">1.</a>. van Wieringen, W.N. and Peeters, C.F.W. <strong>(2016)</strong>. <a href="https://www.sciencedirect.com/science/article/pii/S0167947316301141"><em>Ridge Estimation of Inverse Covariance Matrices from High-Dimensional Data.</em></a> Computational Statistics &amp; Data Analysis, vol. 103: 284-303.</p>
+<p><a href="https://doi.org/10.1016/j.csda.2016.05.012">1.</a>. van Wieringen, W.N. and Peeters, C.F.W. <strong>(2016)</strong>. <a href="https://doi.org/10.1016/j.csda.2016.05.012"><em>Ridge Estimation of Inverse Covariance Matrices from High-Dimensional Data.</em></a> Computational Statistics &amp; Data Analysis, vol. 103: 284-303.</p>
 <p><a href="https://arxiv.org/abs/1509.07982">2.</a> Bilgrau, A.E., Peeters, C.F.W., Eriksen, P.S., Boegsted, M., and van Wieringen, W.N. <strong>(2015)</strong>. <a href="https://arxiv.org/abs/1509.07982"><em>Targeted Fused Ridge Estimation of Inverse Covariance Matrices from Multiple High-Dimensional Data Classes.</em></a> arXiv:1509.07982 [stat.ME].</p>
 </div>
 </div>

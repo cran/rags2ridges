@@ -2,7 +2,7 @@ Package: rags2ridges
 Type: Package
 Title: Ridge Estimation of Precision Matrices from High-Dimensional
         Data
-Version: 2.2.7
+Version: 2.2.8
 Maintainer: Carel F.W. Peeters <carel.peeters@wur.nl>
 Authors@R: c(
     person(given = c("Carel", "F.W."),
@@ -39,11 +39,12 @@ RoxygenNote: 7.2.3
 Encoding: UTF-8
 VignetteBuilder: knitr
 NeedsCompilation: yes
-Packaged: 2023-10-13 20:18:22 UTC; cfwpe
-Author: Carel F.W. Peeters [aut, cre, cph]
-    (<https://orcid.org/0000-0001-5766-9969>),
-  Anders Ellern Bilgrau [aut, cph]
-    (<https://orcid.org/0000-0001-9875-2902>),
-  Wessel N. van Wieringen [aut] (<https://orcid.org/0000-0002-5100-9123>)
+Packaged: 2025-08-29 15:32:57 UTC; cfwpe
+Author: Carel F.W. Peeters [aut, cre, cph] (ORCID:
+    <https://orcid.org/0000-0001-5766-9969>),
+  Anders Ellern Bilgrau [aut, cph] (ORCID:
+    <https://orcid.org/0000-0001-9875-2902>),
+  Wessel N. van Wieringen [aut] (ORCID:
+    <https://orcid.org/0000-0002-5100-9123>)
 Repository: CRAN
-Date/Publication: 2023-10-14 14:10:02 UTC
+Date/Publication: 2025-08-29 16:30:02 UTC
